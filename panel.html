@@ -1,0 +1,1471 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" class=""><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>PushPlus 收益统计与消息查看</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+:root{
+  --bg:#0b0b10;--card:#16161e;--card2:#1c1c28;--border:#252533;
+  --t1:#f0f0f5;--t2:#a0a0b8;--t3:#606078;
+  --green:#4ade80;--red:#f87171;--orange:#fbbf24;--blue:#60a5fa;--purple:#a78bfa;
+}
+html,body{height:100%;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Noto Sans CJK SC','WenQuanYi Micro Hei',sans-serif;
+  background:var(--bg);color:var(--t1);-webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+.topbar{position:sticky;top:0;z-index:200;background:rgba(11,11,16,0.85);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);border-bottom:1px solid var(--border);}
+.topbar-in{max-width:480px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}
+.topbar h1{font-size:16px;font-weight:700;letter-spacing:0.5px;}
+.topbar .sub{font-size:10px;color:var(--t3);margin-top:1px;}
+.topbar-right{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px;max-width:260px;}
+.auto-tag{font-size:10px;color:var(--t3);padding:3px 8px;border:1px solid var(--border);border-radius:6px;}
+.auto-tag.on{color:var(--green);border-color:rgba(74,222,128,0.3);}
+.btn{padding:9px 18px;font-size:13px;font-weight:600;color:#fff;background:#6366f1;border:none;border-radius:8px;cursor:pointer;transition:transform 0.15s,opacity 0.15s;}
+.btn:active{transform:scale(0.95);}
+.btn:disabled{opacity:0.4;cursor:wait;}
+
+.tabs{max-width:480px;margin:0 auto;display:flex;gap:0;padding:8px 16px 0;border-bottom:1px solid var(--border);}
+.tab{padding:8px 16px;font-size:13px;font-weight:600;color:var(--t3);cursor:pointer;border:none;background:none;border-bottom:2px solid transparent;transition:all 0.2s;}
+.tab.active{color:var(--purple);border-bottom-color:var(--purple);}
+
+.wrap{max-width:480px;margin:0 auto;padding:16px 16px 40px;}
+.summary{display:flex;gap:8px;margin-bottom:16px;}
+.s-card{flex:1;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 6px;text-align:center;}
+.s-card .l{font-size:10px;color:var(--t3);margin-bottom:4px;}
+.s-card .v{font-size:22px;font-weight:800;line-height:1.1;}
+.s-card .u{font-size:11px;font-weight:400;color:var(--t3);}
+.s-card.g .v{color:var(--green);}.s-card.b .v{color:var(--blue);}.s-card.o .v{color:var(--orange);}
+
+.sbar{border-radius:8px;padding:8px 12px;margin-bottom:14px;text-align:center;font-size:12px;font-weight:600;}
+.sbar.ok{background:rgba(74,222,128,0.06);color:var(--green);border:1px solid rgba(74,222,128,0.15);}
+.sbar.warn{background:rgba(248,113,113,0.06);color:var(--red);border:1px solid rgba(248,113,113,0.15);}
+
+.alist{display:flex;flex-direction:column;gap:8px;}
+.acard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 15px;overflow:hidden;position:relative;}
+.acard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+.acard.ok::before{background:var(--green);}.acard.to::before{background:var(--red);}.acard.un::before{background:var(--t3);}
+.arow1{display:flex;align-items:center;justify-content:space-between;}
+.aname{font-size:15px;font-weight:700;}
+.atag{font-size:11px;font-weight:600;padding:2px 8px;border-radius:5px;}
+.atag.ok{color:var(--green);background:rgba(74,222,128,0.08);}.atag.to{color:var(--red);background:rgba(248,113,113,0.08);}.atag.un{color:var(--t3);background:rgba(96,96,120,0.08);}
+.aprof{font-size:26px;font-weight:800;color:var(--green);margin:6px 0;}
+.aprof .u{font-size:12px;font-weight:400;color:var(--t3);}
+.adet{display:flex;flex-wrap:wrap;gap:3px 10px;}
+.adet span{font-size:11px;color:var(--t3);line-height:1.6;}
+.adet b{color:var(--t2);font-weight:600;}
+.atime{font-size:10px;color:var(--t3);margin-top:6px;}
+
+.msg-section{max-width:480px;margin:0 auto;padding:16px;display:none;}
+.msg-section.active{display:block;}
+.input-group{margin-bottom:12px;}
+.input-group label{display:block;font-size:11px;color:var(--t3);margin-bottom:4px;}
+.input-group input{width:100%;padding:10px 12px;font-size:13px;background:var(--card);color:var(--t1);border:1px solid var(--border);border-radius:8px;outline:none;transition:border-color 0.2s;}
+.input-group input:focus{border-color:var(--purple);}
+.btn-fetch{width:100%;padding:11px;font-size:14px;font-weight:600;color:#fff;background:#6366f1;border:none;border-radius:8px;cursor:pointer;margin-bottom:16px;transition:transform 0.15s;}
+.btn-fetch:active{transform:scale(0.97);}
+.btn-fetch:disabled{opacity:0.4;cursor:wait;}
+.msg-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 15px;margin-bottom:8px;}
+.msg-card .mt{font-size:14px;font-weight:700;color:var(--t1);margin-bottom:4px;}
+.msg-card .mc{font-size:12px;color:var(--t2);line-height:1.6;white-space:pre-wrap;word-break:break-all;}
+.msg-card .mt2{font-size:10px;color:var(--t3);margin-top:6px;}
+
+.spin{width:24px;height:24px;border:2.5px solid var(--border);border-top-color:var(--purple);border-radius:50%;animation:sp 0.7s linear infinite;margin:0 auto 10px;}
+@keyframes sp{to{transform:rotate(360deg);}}
+.center{text-align:center;padding:50px 20px;color:var(--t3);font-size:14px;}
+.fade{animation:fi 0.3s ease;}
+@keyframes fi{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+.note{font-size:11px;color:var(--t3);padding:8px 12px;background:rgba(96,96,120,0.06);border:1px solid var(--border);border-radius:8px;margin-bottom:14px;line-height:1.5;}
+
+/* === 历史对比（嵌入收益面板） === */
+.cmp-summary{display:flex;gap:8px;margin-bottom:14px;margin-top:16px;}
+.cmp-diff-card{flex:1;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 10px;text-align:center;}
+.cmp-diff-card .l{font-size:10px;color:var(--t3);margin-bottom:4px;}
+.cmp-diff-card .v{font-size:20px;font-weight:800;line-height:1.1;}
+.cmp-diff-card .v.up{color:var(--green);}
+.cmp-diff-card .v.down{color:var(--red);}
+.cmp-diff-card .v.flat{color:var(--t2);}
+.cmp-diff-card .sub{font-size:10px;color:var(--t3);margin-top:2px;}
+.cmp-table{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:14px;}
+.cmp-table-head{display:flex;padding:10px 12px;background:var(--card2);border-bottom:1px solid var(--border);font-size:11px;font-weight:700;color:var(--t2);}
+.cmp-table-row{display:flex;padding:10px 12px;border-bottom:1px solid var(--border);font-size:12px;align-items:center;}
+.cmp-table-row:last-child{border-bottom:none;}
+.cmp-table-row .col1{flex:2;}
+.cmp-table-row .col2{flex:1.5;text-align:right;}
+.cmp-table-row .col3{flex:1;text-align:right;}
+.cmp-table-row .col4{flex:1;text-align:right;}
+.cmp-table-row .col5{flex:1;text-align:right;}
+.cmp-delta-up{color:var(--green);}
+.cmp-delta-down{color:var(--red);}
+.cmp-delta-flat{color:var(--t3);}
+.cmp-empty{text-align:center;padding:50px 20px;color:var(--t3);font-size:14px;}
+.cmp-hint{font-size:11px;color:var(--t3);padding:8px 12px;background:rgba(96,165,250,0.06);border:1px solid rgba(96,165,250,0.15);border-radius:8px;margin-bottom:14px;line-height:1.5;}
+.cmp-acc-detail{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 15px;margin-bottom:14px;}
+.cmp-acc-detail-title{font-size:12px;font-weight:700;color:var(--t2);margin-bottom:10px;}
+.cmp-acc-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;}
+.cmp-acc-row:last-child{border-bottom:none;}
+.cmp-acc-name{color:var(--t1);font-weight:600;}
+.cmp-acc-vals{display:flex;gap:10px;align-items:center;}
+.cmp-acc-profit{color:var(--green);font-weight:700;}
+.cmp-acc-delta{font-size:11px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-in" style="">
+    <div>
+      <h1>PushPlus 收益面板</h1>
+      <div class="sub" id="lastUpdate">更新于 2026-08-22 11:21:46</div>
+    </div>
+    <div class="topbar-right">
+      <div style="display: flex; align-items: center; gap: 4px;">
+        
+        <input type="number" id="autoMin" value="5" min="1" style="width: 40px; padding: 4px 2px; font-size: 11px; background: var(--card); color: var(--t1); border-color: rgba(74, 222, 128, 0.3); border-top-style: ; border-top-width: ; border-right-style: ; border-right-width: ; border-bottom-style: ; border-bottom-width: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; border-radius: 5px; text-align: center; outline: none;" title="自动刷新间隔（分钟）" onchange="if(autoOn){startTimer();}"><span style="font-size: 10px; color: var(--t3);">分</span>
+        <span class="auto-tag on" id="autoTag" onclick="toggleAutoRefresh()" style="color: var(--green); border-color: rgba(74, 222, 128, 0.3);">自动刷新功能 开</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;">
+        <input type="number" id="timeoutMin" value="45" min="1" style="width:40px;padding:4px 2px;font-size:11px;background:var(--card);color:var(--t1);border:1px solid var(--border);border-radius:5px;text-align:center;outline:none;" title="超时未推送阈值（分钟）">
+        <span style="font-size:10px;color:var(--t3);">分</span>
+        <span class="auto-tag" id="timeoutTag" onclick="toggleTimeout()" style="color: var(--green); border-color: rgba(74, 222, 128, 0.3); text-align: center; font-size: 11px;">超时推送检测 开</span>
+      </div>
+      
+      <span class="auto-tag" id="cashTag" onclick="toggleCashAlert()" style="color: var(--green); border-color: rgba(74, 222, 128, 0.3);">收钱 开</span>
+      <button class="btn" id="btn" onclick="loadProfit(true)">刷新</button>
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" id="tab1" onclick="switchTab(1)">种树收益</button>
+  
+<button class="tab" id="tab2" onclick="switchTab(2)">消息查看</button>
+</div>
+
+<!-- Tab1: 种树收益 -->
+<div class="wrap" id="tab1Content" style="">
+  <div class="note">提示：收益统计需要配置 Token 和 SecretKey。点击下方"消息查看"填写后，收益统计也会自动使用同一组凭据。</div>
+  <div id="box"><div class="center" style="color:var(--red);">拉取失败：网络请求失败，所有 7 个代理均不可用。建议：1)检查网络连接 2)稍后重试 3)尝试更换网络环境<br><span style="font-size:12px;">可能原因：CORS限制或网络问题</span></div></div>
+  <div id="cmpBox"><div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);"><div style="font-size:13px;font-weight:700;color:var(--purple);margin-bottom:12px;">历史对比</div><div class="cmp-summary fade"><div class="cmp-diff-card"><div class="l">今日累计收益</div><div class="v" style="color:var(--green);">24,131<span style="font-size:11px;color:var(--t3);"> 万</span></div><div class="sub">2026-08-22</div></div><div class="cmp-diff-card"><div class="l">对比2026-08-21</div><div class="v up">418<span style="font-size:11px;color:var(--t3);"> 万</span></div><div class="sub">增加</div></div><div class="cmp-diff-card"><div class="l">种植变化</div><div class="v up">53<span style="font-size:11px;color:var(--t3);"> 棵</span></div><div class="sub">增加</div></div></div><div class="cmp-table fade"><div class="cmp-table-head"><span class="col1" style="flex:1.8;">日期</span><span class="col2" style="flex:1.3;text-align:right;">累计收益</span><span class="col3" style="flex:1;text-align:right;">种植</span><span class="col4" style="flex:0.8;text-align:right;">账号</span><span class="col5" style="flex:1.2;text-align:right;color:var(--red);">亏损</span><span class="col6" style="flex:1;text-align:right;">日增减</span></div><div class="cmp-table-row"><span class="col1" style="flex:1.8;">2026-08-22</span><span class="col2" style="flex:1.3;text-align:right;color:var(--green);font-weight:700;">24,131</span><span class="col3" style="flex:1;text-align:right;">2,458</span><span class="col4" style="flex:0.8;text-align:right;">6</span><span class="col5" style="flex:1.2;text-align:right;"><span style="color:var(--red);font-weight:700;">1个账号</span></span><span class="col6" style="flex:1;text-align:right;"><span class="cmp-delta-up">418</span></span></div><div class="cmp-table-row"><span class="col1" style="flex:1.8;">2026-08-21</span><span class="col2" style="flex:1.3;text-align:right;color:var(--green);font-weight:700;">23,713</span><span class="col3" style="flex:1;text-align:right;">2,405</span><span class="col4" style="flex:0.8;text-align:right;">6</span><span class="col5" style="flex:1.2;text-align:right;"><span style="color:var(--red);font-weight:700;">1个账号</span></span><span class="col6" style="flex:1;text-align:right;"><span class="cmp-delta-up">9,149</span></span></div><div class="cmp-table-row"><span class="col1" style="flex:1.8;">2026-08-20</span><span class="col2" style="flex:1.3;text-align:right;color:var(--green);font-weight:700;">14,564</span><span class="col3" style="flex:1;text-align:right;">1,651</span><span class="col4" style="flex:0.8;text-align:right;">4</span><span class="col5" style="flex:1.2;text-align:right;"><span style="color:var(--t3);">无</span></span><span class="col6" style="flex:1;text-align:right;"><span class="cmp-delta-flat">-</span></span></div></div><div class="cmp-acc-detail fade" style="overflow-x:auto;"><div class="cmp-acc-detail-title">每日各账号盈亏 (万)</div><table style="width:100%;border-collapse:collapse;font-size:11px;min-width:400px;"><thead><tr style="background:var(--card2);"><th style="padding:8px 6px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--t2);">账号</th><th style="padding:8px 6px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;color:var(--t2);white-space:nowrap;">08-20</th><th style="padding:8px 6px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;color:var(--t2);white-space:nowrap;">08-21</th><th style="padding:8px 6px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;color:var(--purple);white-space:nowrap;">08-22</th><th style="padding:8px 6px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;color:var(--orange);">累计</th></tr></thead><tbody><tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 6px;text-align:left;color:var(--t1);font-weight:600;">阳光闪耀方寸</td><td style="padding:8px 6px;text-align:right;color:var(--t2);font-weight:400;">2,073</td><td style="padding:8px 6px;text-align:right;color:var(--t2);font-weight:400;">328</td><td style="padding:8px 6px;text-align:right;color:var(--green);font-weight:700;">149</td><td style="padding:8px 6px;text-align:right;"><span class="cmp-delta-up" style="font-weight:600;">477</span></td></tr><tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 6px;text-align:left;color:var(--t1);font-weight:600;">4号</td><td style="padding:8px 6px;text-align:right;color:var(--t2);font-weight:400;">3,961</td><td style="padding:8px 6px;text-align:right;color:var(--t2);font-weight:400;">415</td><td style="padding:8px 6px;text-align:right;color:var(--green);font-weight:700;">140</td><td style="padding:8px 6px;text-align:right;"><span class="cmp-delta-up" style="font-weight:600;">555</span></td></tr><tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 6px;text-align:left;color:var(--t1);font-weight:600;">垃圾小号105</td><td style="padding:8px 6px;text-align:right;color:var(--t2);font-weight:400;">3,668</td><td style="padding:8px 6px;text-align:right;color:var(--red);font-weight:400;"><span style="color:var(--red);">-48</span></td><td style="padding:8px 6px;text-align:right;color:var(--green);font-weight:700;">139</td><td style="padding:8px 6px;text-align:right;"><span class="cmp-delta-up" style="font-weight:600;">91</span></td></tr><tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 6px;text-align:left;color:var(--t1);font-weight:600;">阳光闪耀女魔</td><td style="padding:8px 6px;text-align:right;color:var(--t2);font-weight:400;">4,862</td><td style="padding:8px 6px;text-align:right;color:var(--t2);font-weight:400;">488</td><td style="padding:8px 6px;text-align:right;color:var(--green);font-weight:700;">98</td><td style="padding:8px 6px;text-align:right;"><span class="cmp-delta-up" style="font-weight:600;">586</span></td></tr><tr style="border-bottom:1px solid var(--border);"><td style="padding:8px 6px;text-align:left;color:var(--t1);font-weight:600;">盘丝5姐</td><td style="padding:8px 6px;text-align:right;color:var(--t3);">-</td><td style="padding:8px 6px;text-align:right;color:var(--t2);font-weight:400;">2,219</td><td style="padding:8px 6px;text-align:right;color:var(--green);font-weight:700;">16</td><td style="padding:8px 6px;text-align:right;"><span class="cmp-delta-up" style="font-weight:600;">16</span></td></tr><tr style="border-bottom:1px solid var(--border);background:rgba(248,113,113,0.08);"><td style="padding:8px 6px;text-align:left;color:var(--red);font-weight:700;"><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red);margin-right:4px;vertical-align:middle;"></span>11年盘丝</td><td style="padding:8px 6px;text-align:right;color:var(--t3);">-</td><td style="padding:8px 6px;text-align:right;color:var(--t2);font-weight:400;">5,747</td><td style="padding:8px 6px;text-align:right;color:var(--red);font-weight:700;"><span style="color:var(--red);">-124</span></td><td style="padding:8px 6px;text-align:right;"><span class="cmp-delta-down" style="font-weight:600;"><span style="color:var(--red);">-124</span></span></td></tr><tr style="border-top:2px solid var(--border);background:var(--card2);"><td style="padding:8px 6px;text-align:left;font-weight:700;color:var(--t1);">合计</td><td style="padding:8px 6px;text-align:right;font-weight:700;color:var(--t1);">14,564</td><td style="padding:8px 6px;text-align:right;font-weight:700;color:var(--t1);">9,149</td><td style="padding:8px 6px;text-align:right;font-weight:700;color:var(--green);">418</td><td style="padding:8px 6px;text-align:right;"><span class="cmp-delta-up" style="font-weight:700;">9,567</span></td></tr></tbody></table></div></div></div>
+</div>
+
+<!-- Tab2: 消息查看 -->
+<div class="msg-section" id="tab2Content">
+  <div class="input-group">
+    <label>PushPlus Token</label>
+    <input type="text" id="ppToken" placeholder="输入 PushPlus Token" autocomplete="off">
+  </div>
+  <div class="input-group">
+    <label>SecretKey</label>
+    <input type="text" id="ppSecret" placeholder="输入 SecretKey" autocomplete="off">
+  </div>
+  <button class="btn-fetch" id="btnFetch" onclick="fetchMessages()">拉取消息</button>
+  <div id="msgBox"><div class="msg-card fade" style="animation-delay:0ms;"><div class="mt">11年盘丝种树完成</div><div class="mc">已种植:669棵,单棵收益:-33万,累计收益:5623万,平均收益:9万,在线时长:23分钟,当前具体收益:
+现金: 现在钱数 6174596 - 开始钱数6150396 = 24200
+龙之心屑--27980
+卷轴--10000
+金柳露--65000
+卷轴--10000
+六道轮回--27980
+
+一共摇晃6次,出现特殊情况0次51</div><div class="mt2">2026-08-22 11:01:31</div></div><div class="msg-card fade" style="animation-delay:30ms;"><div class="mt">垃圾小号105种树完成</div><div class="mc">已种植:700棵,单棵收益:-8万,累计收益:3759万,平均收益:6万,在线时长:9分钟,当前具体收益:
+现金: 现在钱数 3807151 - 开始钱数3696651 = 110500
+火凤之睛--27980
+金柳露--65000
+凤凰尾--27980
+孔雀红--27980
+光芒石(等级2)--20000
+龙之心屑--27980
+金柳露--65000
+
+一共摇晃6次,出现特殊情况1次76</div><div class="mt2">2026-08-22 11:00:27</div></div><div class="msg-card fade" style="animation-delay:60ms;"><div class="mt">盘丝5姐种树完成</div><div class="mc">已种植:0棵,单棵收益:93万,累计收益:2235万,平均收益:inf万,在线时长:23分钟,当前具体收益:
+现金: 现在钱数 4882190 - 开始钱数4755690 = 126500
+孔雀红--27980
+凤凰尾--27980
+魔兽要诀--850000
+符石--125000
+六道轮回--27980
+太阳石(等级3)--240000
+
+一共摇晃7次,出现特殊情况1次72</div><div class="mt2">2026-08-22 10:52:46</div></div><div class="msg-card fade" style="animation-delay:90ms;"><div class="mt">4号种树完成</div><div class="mc">已种植:0棵,单棵收益:56万,累计收益:4516万,平均收益:inf万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 6801540 - 开始钱数6801540 = 0
+孔雀红--27980
+金柳露--75000
+孔雀红--27980
+龙之心屑--27980
+孔雀红--27980
+魔兽要诀--860000
+
+一共摇晃6次,出现特殊情况0次35</div><div class="mt2">2026-08-22 10:47:02</div></div><div class="msg-card fade" style="animation-delay:120ms;"><div class="mt">阳光闪耀女魔种树完成</div><div class="mc">已种植:705棵,单棵收益:-8万,累计收益:5448万,平均收益:8万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 8372130 - 开始钱数8325530 = 46600
+火凤之睛--27000
+火凤之睛--27000
+天龙水--27000
+海马--190000
+
+一共摇晃6次,出现特殊情况0次27</div><div class="mt2">2026-08-22 10:45:25</div></div><div class="msg-card fade" style="animation-delay:150ms;"><div class="mt">阳光闪耀方寸种树完成</div><div class="mc">已种植:384棵,单棵收益:-15万,累计收益:2550万,平均收益:7万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 5999313 - 开始钱数5910913 = 88400
+龙之心屑--27000
+符石--110000
+孔雀红--27000
+
+一共摇晃6次,出现特殊情况0次3</div><div class="mt2">2026-08-22 10:42:31</div></div><div class="msg-card fade" style="animation-delay:180ms;"><div class="mt">垃圾小号105种树完成</div><div class="mc">已种植:699棵,单棵收益:157万,累计收益:3767万,平均收益:6万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 3188150 - 开始钱数3025550 = 162600
+青龙石--80000
+龙之心屑--27980
+金刚石--910000
+孔雀红--27980
+龙之心屑--27980
+超级金柳露--300000
+孔雀红--27980
+孔雀红--27980
+超级金柳露--300000
+月亮石(等级0)--45000
+符石--125000
+
+一共摇晃9次,出现特殊情况2次83</div><div class="mt2">2026-08-22 10:31:39</div></div><div class="msg-card fade" style="animation-delay:210ms;"><div class="mt">盘丝5姐摄妖香检测异常</div><div class="mc">请检查摄妖香提示框位置,把提示框拉倒原来的位置重新开启脚本66</div><div class="mt2">2026-08-22 10:28:51</div></div><div class="msg-card fade" style="animation-delay:240ms;"><div class="mt">11年盘丝种树完成</div><div class="mc">已种植:668棵,单棵收益:0万,累计收益:5656万,平均收益:9万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 4220396 - 开始钱数4089396 = 131000
+六道轮回--27980
+月亮石(等级0)--45000
+太阳石(等级未知)--55000
+海马--180000
+红玛瑙(等级未知)--55000
+
+一共摇晃7次,出现特殊情况1次52</div><div class="mt2">2026-08-22 10:19:08</div></div><div class="msg-card fade" style="animation-delay:270ms;"><div class="mt">盘丝5姐种树完成</div><div class="mc">已种植:0棵,单棵收益:-22万,累计收益:2142万,平均收益:inf万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 2555690 - 开始钱数2415890 = 139800
+凤凰尾--27980
+青龙石--80000
+凤凰尾--27980
+
+一共摇晃6次,出现特殊情况0次51</div><div class="mt2">2026-08-22 10:09:21</div></div><div class="msg-card fade" style="animation-delay:300ms;"><div class="mt">4号种树完成</div><div class="mc">已种植:0棵,单棵收益:0万,累计收益:4460万,平均收益:inf万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 6814040 - 开始钱数6686040 = 128000
+孔雀红--27980
+火凤之睛--27980
+凤凰尾--27980
+孔雀红--27980
+舍利子(等级0)--72000
+金柳露--75000
+孔雀红--27980
+金柳露--75000
+
+一共摇晃8次,出现特殊情况2次31</div><div class="mt2">2026-08-22 10:04:14</div></div><div class="msg-card fade" style="animation-delay:330ms;"><div class="mt">阳光闪耀女魔种树完成</div><div class="mc">已种植:704棵,单棵收益:-23万,累计收益:5456万,平均收益:8万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 8096030 - 开始钱数8002830 = 93200
+孔雀红--27000
+凤凰尾--27000
+血珊瑚--27000
+
+一共摇晃6次,出现特殊情况0次97</div><div class="mt2">2026-08-22 10:03:52</div></div><div class="msg-card fade" style="animation-delay:360ms;"><div class="mt">阳光闪耀方寸种树完成</div><div class="mc">已种植:383棵,单棵收益:-22万,累计收益:2565万,平均收益:7万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 5719913 - 开始钱数5599413 = 120500
+凤凰尾--27000
+龙之心屑--27000
+
+一共摇晃7次,出现特殊情况1次28</div><div class="mt2">2026-08-22 10:00:07</div></div><div class="msg-card fade" style="animation-delay:390ms;"><div class="mt">垃圾小号105种树完成</div><div class="mc">已种植:698棵,单棵收益:-7万,累计收益:3610万,平均收益:6万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 2927620 - 开始钱数2807120 = 120500
+龙之心屑--27980
+龙之心屑--27980
+凤凰尾--27980
+金柳露--65000
+符石--125000
+龙之心屑--27980
+
+一共摇晃7次,出现特殊情况1次18</div><div class="mt2">2026-08-22 09:47:41</div></div><div class="msg-card fade" style="animation-delay:420ms;"><div class="mt">4号摄妖香检测异常</div><div class="mc">请检查摄妖香提示框位置,把提示框拉倒原来的位置重新开启脚本19</div><div class="mt2">2026-08-22 09:40:02</div></div><div class="msg-card fade" style="animation-delay:450ms;"><div class="mt">11年盘丝种树完成</div><div class="mc">已种植:667棵,单棵收益:58万,累计收益:5656万,平均收益:9万,在线时长:23分钟,当前具体收益:
+现金: 现在钱数 3909396 - 开始钱数3788396 = 121000
+魔兽要诀--860000
+六道轮回--27980
+金柳露--65000
+
+一共摇晃6次,出现特殊情况0次79</div><div class="mt2">2026-08-22 09:36:38</div></div><div class="msg-card fade" style="animation-delay:480ms;"><div class="mt">盘丝5姐种树完成</div><div class="mc">已种植:0棵,单棵收益:-18万,累计收益:2164万,平均收益:inf万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 2144748 - 开始钱数1981648 = 163100
+黑宝石(等级0)--150000
+
+一共摇晃6次,出现特殊情况0次32</div><div class="mt2">2026-08-22 09:26:37</div></div><div class="msg-card fade" style="animation-delay:510ms;"><div class="mt">阳光闪耀女魔种树完成</div><div class="mc">已种植:703棵,单棵收益:58万,累计收益:5479万,平均收益:8万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 8002830 - 开始钱数7932930 = 69900
+月亮石(等级0)--60000
+魔兽要诀--650000
+龙之心屑--27000
+金柳露--35000
+六道轮回--27000
+符石--110000
+
+一共摇晃6次,出现特殊情况0次87</div><div class="mt2">2026-08-22 09:21:18</div></div><div class="msg-card fade" style="animation-delay:540ms;"><div class="mt">4号种树完成</div><div class="mc">已种植:0棵,单棵收益:-7万,累计收益:4460万,平均收益:inf万,在线时长:23分钟,当前具体收益:
+现金: 现在钱数 6595105 - 开始钱数6457105 = 138000
+凤凰尾--27980
+金柳露--75000
+海马--180000
+
+一共摇晃8次,出现特殊情况1次32</div><div class="mt2">2026-08-22 09:20:23</div></div><div class="msg-card fade" style="animation-delay:570ms;"><div class="mt">阳光闪耀方寸种树完成</div><div class="mc">已种植:382棵,单棵收益:-2万,累计收益:2587万,平均收益:7万,在线时长:22分钟,当前具体收益:
+现金: 现在钱数 5599413 - 开始钱数5466813 = 132600
+火凤之睛--27000
+孔雀红--27000
+符石--110000
+六道轮回--27000
+龙之心屑--27000
+六道轮回--27000
+
+一共摇晃6次,出现特殊情况0次38</div><div class="mt2">2026-08-22 09:17:32</div></div></div>
+</div>
+
+<script>
+var timer = null;
+var autoOn = false; // 自动刷新开关状态
+var cachedAK = '';
+var cachedToken = '';
+var cachedSecret = '';
+
+// ===== 工具函数 =====
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function p(n){return String(n).padStart(2,'0');}
+function fmt(d){return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());}
+
+// ===== CORS 代理（解决浏览器跨域限制） =====
+var CORS_PROXIES = [
+  function(url){ return 'https://api.cors.lol/?url=' + encodeURIComponent(url); },
+  function(url){ return 'https://corsproxy.io/?url=' + encodeURIComponent(url); },
+  function(url){ return 'https://thingproxy.freeboard.io/fetch/' + url; },
+  function(url){ return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url); },
+  function(url){ return 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url); },
+  function(url){ return 'https://cors-proxy-rouge.vercel.app/?url=' + encodeURIComponent(url); },
+  function(url){ return 'https://cors-proxy-kokodev.netlify.app/?url=' + encodeURIComponent(url); }
+];
+
+// POST-capable proxies (subset that supports POST method)
+var POST_PROXIES = CORS_PROXIES.filter(function(_, i){ return [0,1,2,5,6].indexOf(i) >= 0; });
+var proxyIdx = 0; // 当前使用的代理索引
+var proxyFailCount = {}; // 记录每个代理的连续失败次数
+var FETCH_TIMEOUT = 20000; // fetch 超时 15 秒
+
+// ===== 通用重试包装器 =====
+async function retryAsync(fn, retries, delayMs){
+  retries = retries || 2;
+  delayMs = delayMs || 800;
+  var lastErr;
+  for(var i=0; i<=retries; i++){
+    try{
+      return await fn();
+    }catch(e){
+      lastErr = e;
+      if(i < retries){
+        console.log('[Retry] 第'+(i+1)+'次失败，'+delayMs+'ms后重试... 原因: '+e.message);
+        await new Promise(function(r){ setTimeout(r, delayMs); });
+      }
+    }
+  }
+  throw lastErr;
+}
+
+function getProxy(url){ return CORS_PROXIES[proxyIdx](url); }
+
+// 修复 CORS 代理导致的双重编码 mojibake
+function fixText(text){
+  if(!text || text.length === 0) return text;
+  if(/[\u4E00-\u9FFF]/.test(text)) return text;
+  var latin1Count = 0;
+  for(var i=0; i<Math.min(text.length, 200); i++){
+    var c = text.charCodeAt(i);
+    if(c >= 0x80 && c <= 0xFF) latin1Count++;
+  }
+  if(latin1Count < 2) return text;
+  try{
+    var bytes = new Uint8Array(text.length);
+    var valid = true;
+    for(var i=0; i<text.length; i++){
+      var code = text.charCodeAt(i);
+      if(code > 255){ valid = false; break; }
+      bytes[i] = code;
+    }
+    if(valid){
+      var repaired = new TextDecoder('utf-8').decode(bytes);
+      if(/[\u4E00-\u9FFF]/.test(repaired)) return repaired;
+    }
+  }catch(e){}
+  return text;
+}
+
+// 统一解码响应：尝试多种方式确保中文正确
+async function getResponseText(resp){
+  var buf, textByBrowser = null;
+  try{ textByBrowser = await resp.clone().text(); }catch(e){}
+  buf = await resp.arrayBuffer();
+  var text = new TextDecoder('utf-8').decode(buf);
+  if(/[\u4E00-\u9FFF]/.test(text) || !/[\u0080-\uFFFF]/.test(text)) return text;
+  if(textByBrowser && /[\u4E00-\u9FFF]/.test(textByBrowser)) return textByBrowser;
+  var fixed = fixText(text);
+  if(/[\u4E00-\u9FFF]/.test(fixed)) return fixed;
+  if(textByBrowser){
+    var fixed2 = fixText(textByBrowser);
+    if(/[\u4E00-\u9FFF]/.test(fixed2)) return fixed2;
+  }
+  var encodings = ['gbk','big5','shift-jis','euc-kr','euc-jp','windows-1252','iso-8859-1'];
+  for(var i=0; i<encodings.length; i++){
+    try{
+      var decoded = new TextDecoder(encodings[i]).decode(buf);
+      if(/[\u4E00-\u9FFF]/.test(decoded)) return decoded;
+    }catch(e){}
+  }
+  return text;
+}
+
+// 带超时的 fetch
+async function fetchWithTimeout(url, options){
+  var controller = new AbortController();
+  var id = setTimeout(function(){ controller.abort(); }, FETCH_TIMEOUT);
+  try{
+    var opts = Object.assign({cache:'no-cache'}, options, {signal: controller.signal});
+    var resp = await fetch(url, opts);
+    clearTimeout(id);
+    return resp;
+  }catch(e){
+    clearTimeout(id);
+    throw e;
+  }
+}
+
+// 先尝试直连，失败再用 CORS 代理发送 POST 请求
+async function corsPost(url, body, customHeaders){
+  // 1. Try direct fetch first
+  try{
+    var opts = {method:'POST', headers:{'Content-Type':'application/json'}};
+    if(customHeaders) Object.assign(opts.headers, customHeaders);
+    opts.body = JSON.stringify(body);
+    var resp = await fetchWithTimeout(url, opts);
+    if(resp.ok){
+      var text = await getResponseText(resp);
+      if(text && text.trim().length > 0){
+        var d;
+        try { d = JSON.parse(text); } catch(e) { throw new Error('JSON解析失败'); }
+        console.log('[DIRECT] POST 成功');
+        return d;
+      }
+    }
+    throw new Error('HTTP ' + resp.status);
+  }catch(e){
+    console.log('[DIRECT] POST 失败: ' + e.message + '，尝试代理...');
+  }
+  // 2. Fall back to CORS proxies
+  var errors = [];
+  var proxies = (typeof POST_PROXIES !== 'undefined') ? POST_PROXIES : CORS_PROXIES;
+  for(var attempt=0; attempt<proxies.length; attempt++){
+    var idx = (proxyIdx + attempt) % proxies.length;
+    if((proxyFailCount[idx]||0) >= 3) continue;
+    var proxyUrl = proxies[idx](url);
+    try{
+      var opts = {method:'POST', headers:{'Content-Type':'application/json'}};
+      if(customHeaders) Object.assign(opts.headers, customHeaders);
+      opts.body = JSON.stringify(body);
+      var resp = await fetchWithTimeout(proxyUrl, opts);
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      var text = await getResponseText(resp);
+      if(!text || text.trim().length === 0) throw new Error('空响应');
+      var d;
+      try { d = JSON.parse(text); } catch(e) { throw new Error('JSON解析失败'); }
+      proxyIdx = idx;
+      proxyFailCount[idx] = 0;
+      console.log('[CORS] POST 成功（代理 #'+(idx+1)+'）');
+      return d;
+    }catch(e){
+      var errMsg = e.name === 'AbortError' ? '请求超时' : e.message;
+      proxyFailCount[idx] = (proxyFailCount[idx]||0) + 1;
+      errors.push('代理#'+(idx+1)+': '+errMsg);
+      console.log('[CORS] POST 代理 #'+(idx+1)+' 失败: '+errMsg);
+    }
+  }
+  throw new Error('所有请求均失败。直连+'+errors.length+'个代理全部失败。可能原因: CORS限制/网络问题/Token无效');
+}
+
+// 先尝试直连，失败再用 CORS 代理发送 GET 请求
+async function corsGet(url){
+  // 1. Try direct fetch first
+  try{
+    var resp = await fetchWithTimeout(url, {method:'GET'});
+    if(resp.ok){
+      var text = await getResponseText(resp);
+      if(text && text.trim().length > 0){
+        console.log('[DIRECT] GET 成功');
+        return text;
+      }
+    }
+    throw new Error('HTTP ' + resp.status);
+  }catch(e){
+    console.log('[DIRECT] GET 失败: ' + e.message + '，尝试代理...');
+  }
+  // 2. Fall back to CORS proxies
+  var errors = [];
+  for(var attempt=0; attempt<CORS_PROXIES.length; attempt++){
+    var idx = (proxyIdx + attempt) % CORS_PROXIES.length;
+    if((proxyFailCount[idx]||0) >= 3) continue;
+    var proxyUrl = CORS_PROXIES[idx](url);
+    try{
+      var resp = await fetchWithTimeout(proxyUrl, {method:'GET'});
+      if(!resp.ok) throw new Error('HTTP ' + resp.status);
+      var text = await getResponseText(resp);
+      if(!text || text.trim().length === 0) throw new Error('空响应');
+      proxyIdx = idx;
+      proxyFailCount[idx] = 0;
+      console.log('[CORS] GET 成功（代理 #'+(idx+1)+'）');
+      return text;
+    }catch(e){
+      var errMsg = e.name === 'AbortError' ? '请求超时' : e.message;
+      proxyFailCount[idx] = (proxyFailCount[idx]||0) + 1;
+      errors.push('代理#'+(idx+1)+': '+errMsg);
+      console.log('[CORS] GET 代理 #'+(idx+1)+' 失败: '+errMsg);
+    }
+  }
+  throw new Error('所有请求均失败。直连+'+errors.length+'个代理全部失败。可能原因: CORS限制/网络问题');
+}
+
+// ===== PushPlus API 调用（通过 CORS 代理） =====
+async function getAccessKey(token, secretKey){
+  if(cachedAK && cachedToken === token && cachedSecret === secretKey) return cachedAK;
+  var d = await retryAsync(function(){
+    return corsPost('https://www.pushplus.plus/api/common/openApi/getAccessKey', {
+      token:token, secretKey:secretKey
+    });
+  }, 2, 1000);
+  if(d.code === 200){
+    cachedAK = d.data.accessKey;
+    cachedToken = token;
+    cachedSecret = secretKey;
+    return d.data.accessKey;
+  }
+  throw new Error(d.msg || '获取AccessKey失败（请检查Token和SecretKey是否正确）');
+}
+
+async function getMessageList(ak, page, pageSize){
+  var d = await retryAsync(function(){
+    return corsPost('https://www.pushplus.plus/api/open/message/list', {
+      current:page, pageSize:pageSize
+    }, {'access-key':ak});
+  }, 2, 1000);
+  if(d.code === 200) return d.data.list || [];
+  throw new Error(d.msg || '拉取消息列表失败');
+}
+
+async function getMessageDetail(shortCode){
+  var html = await corsGet('https://www.pushplus.plus/shortMessage/'+shortCode);
+  var title='(无标题)', content='', pushTime='';
+  var tm = html.match(/<h4[^>]*>([\s\S]*?)<\/h4>/);
+  if(tm) title = tm[1].trim();
+  var cm = html.match(/id="messageContent"[^>]*>([\s\S]*?)<\/div>/);
+  if(cm){
+    content = cm[1].replace(/<[^>]+>/g,'').trim()
+      .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&')
+      .replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&nbsp;/g,' ');
+  }
+  var times = html.match(/\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/g);
+  if(times) pushTime = times[0];
+  return {title:title, content:content, pushTime:pushTime};
+}
+
+// ===== 超时声音提醒 =====
+var soundEnabled = false;
+var lastAlertTime = 0; // 上次声音告警时间戳
+var ALERT_COOLDOWN = 60000; // 声音告警冷却：60秒内不重复
+var alertInterval = null; // 重复告警定时器
+
+function toggleSound(){
+  soundEnabled = !soundEnabled;
+  var tag = document.getElementById('soundTag');
+  if(soundEnabled){
+    tag.textContent = '收益面板声音开关 开';
+    tag.style.color = 'var(--green)';
+    tag.style.borderColor = 'rgba(74,222,128,0.3)';
+    // 测试播放一声
+    playAlertSound();
+  }else{
+    tag.textContent = '收益面板声音开关 关';
+    tag.style.color = 'var(--t3)';
+    tag.style.borderColor = 'var(--border)';
+    stopAlertLoop();
+  }
+  localStorage.setItem('pp_sound', soundEnabled?'1':'0');
+}
+
+// 用 Web Audio API 生成告警音（不需要音频文件）
+function playAlertSound(){
+  try{
+    var ctx = window._audioCtx || (window._audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+    // 播放三声短促的"嘀嘀嘀"
+    for(var i=0; i<3; i++){
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'square';
+      osc.frequency.value = 880; // 880Hz = 高音A
+      var t = ctx.currentTime + i * 0.25;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.3, t + 0.02);
+      gain.gain.linearRampToValueAtTime(0, t + 0.15);
+      osc.start(t);
+      osc.stop(t + 0.2);
+    }
+  }catch(e){ console.log('Audio error:', e); }
+}
+
+// 开始循环告警（每10秒响一次，直到超时消失或用户关闭声音）
+function startAlertLoop(){
+  if(alertInterval) return; // 已在运行
+  playAlertSound();
+  lastAlertTime = Date.now();
+  alertInterval = setInterval(function(){
+    playAlertSound();
+    lastAlertTime = Date.now();
+  }, 10000); // 每10秒响一次
+}
+
+function stopAlertLoop(){
+  if(alertInterval){
+    clearInterval(alertInterval);
+    alertInterval = null;
+  }
+}
+
+// ===== 摇晃语音提醒 =====
+var shakeAlertMap = {}; // 记录每个账号上次提醒的shake值，防止重复提醒
+function speakShakeAlert(account, shake){
+  var key = account + '_' + shake;
+  if(shakeAlertMap[key]) return; // 已提醒过
+  shakeAlertMap[key] = true;
+  try{
+    if('speechSynthesis' in window){
+      var text = '出牌子了';
+      var count = 0;
+      function speakOnce(){
+        if(count >= 3) return;
+        var u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-CN';
+        u.rate = 1.0;
+        u.pitch = 1.0;
+        u.volume = 1.0;
+        u.onend = function(){ count++; speakOnce(); };
+        window.speechSynthesis.speak(u);
+      }
+      speakOnce();
+    }
+  }catch(e){ console.log('Speech error:', e); }
+}
+
+// ===== 现金语音提醒 =====
+var cashAlertEnabled = false;
+var cashAlertMap = {}; // 记录每个账号上次提醒的cash值，防止重复提醒
+var CASH_THRESHOLD = 10000000; // 1000万
+
+function toggleCashAlert(){
+  cashAlertEnabled = !cashAlertEnabled;
+  var tag = document.getElementById('cashTag');
+  if(cashAlertEnabled){
+    tag.textContent = '收钱 开';
+    tag.style.color = 'var(--green)';
+    tag.style.borderColor = 'rgba(74,222,128,0.3)';
+    // 测试播放一次
+    speakCashAlert('测试', 10000001, true);
+  }else{
+    tag.textContent = '收钱 关';
+    tag.style.color = 'var(--t3)';
+    tag.style.borderColor = 'var(--border)';
+  }
+  localStorage.setItem('pp_cash_alert', cashAlertEnabled?'1':'0');
+}
+
+// ===== 超时检测开关 =====
+var timeoutEnabled = true; // 默认开启
+function toggleTimeout(){
+  timeoutEnabled = !timeoutEnabled;
+  var tag = document.getElementById('timeoutTag');
+  if(timeoutEnabled){
+    tag.textContent = '超时检测 开';
+    tag.style.color = 'var(--green)';
+    tag.style.borderColor = 'rgba(74,222,128,0.3)';
+    // 开启超时检测时自动开启声音
+    soundEnabled = true;
+  }else{
+    tag.textContent = '超时检测 关';
+    tag.style.color = 'var(--t3)';
+    tag.style.borderColor = 'var(--border)';
+    // 关闭超时检测时自动关闭声音
+    soundEnabled = false;
+    stopAlertLoop();
+  }
+  localStorage.setItem('pp_timeout_on', timeoutEnabled?'1':'0');
+}
+
+function speakCashAlert(account, cash, force){
+  if(!cashAlertEnabled && !force) return;
+  if(cash <= CASH_THRESHOLD) return;
+  var key = account + '_' + cash;
+  if(cashAlertMap[key]) return; // 已提醒过
+  cashAlertMap[key] = true;
+  try{
+    if('speechSynthesis' in window){
+      var text = '该收钱啦';
+      var count = 0;
+      function speakOnce(){
+        if(count >= 3) return;
+        var u = new SpeechSynthesisUtterance(text);
+        u.lang = 'zh-CN';
+        u.rate = 1.0;
+        u.pitch = 1.0;
+        u.volume = 1.0;
+        u.onend = function(){ count++; speakOnce(); };
+        window.speechSynthesis.speak(u);
+      }
+      speakOnce();
+    }
+  }catch(e){ console.log('Cash speech error:', e); }
+}
+
+// ===== 数字格式化：负数标红 =====
+function redNeg(n, unit){
+  unit = unit || '';
+  if(n < 0) return '<span style="color:var(--red);">'+n.toLocaleString()+unit+'</span>';
+  return n.toLocaleString()+unit;
+}
+
+// ===== 解析种树数据 =====
+function parsePlanting(title, content){
+  var account = title.replace('种树完成','').trim();
+  var planted = content.match(/已种植:(\d+)棵/);
+  var total = content.match(/累计收益:(-?\d+)万/);
+  var online = content.match(/在线时长:(\d+)分钟/);
+  var shake = content.match(/摇晃(\d+)次/);
+  var single = content.match(/单棵收益:(-?\d+)万/);
+  // 解析现金/现在钱数：支持 "现在钱数:4220396" 或 "现金:4220396" 等格式
+  var cash = content.match(/现在钱数[:：]\s*(\d+)/) || content.match(/现金[:：]\s*(\d+)/) || content.match(/当前现金[:：]\s*(\d+)/);
+  // 检测是否没有树苗
+  var noSeedling = /没有树苗|无树苗|树苗不足|缺树苗/.test(content);
+  var plantedVal = planted?parseInt(planted[1]):0;
+  var totalVal = total?parseInt(total[1]):0;
+  var avgVal = plantedVal>0?Math.round(totalVal/plantedVal*100)/100:null;
+  return {
+    account:account, planted:plantedVal, total_profit:totalVal, avg_profit:avgVal,
+    single_profit: single?parseInt(single[1]):0,
+    online_min: online?parseInt(online[1]):0,
+    shake: shake?parseInt(shake[1]):0,
+    cash: cash?parseInt(cash[1]):0,
+    no_seedling: noSeedling
+  };
+}
+
+// ===== 种树收益统计 =====
+function loadProfit(fromBtn){
+  var token = document.getElementById('ppToken').value.trim();
+  var secret = document.getElementById('ppSecret').value.trim();
+  var btn = document.getElementById('btn');
+  var box = document.getElementById('box');
+
+  if(!token || !secret){
+    box.innerHTML = '<div class="center">请先在"消息查看"Tab填写 Token 和 SecretKey</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '加载中';
+  box.innerHTML = '<div class="center"><div class="spin"></div><div>正在拉取收益数据...</div></div>';
+
+  loadProfitData(token, secret).then(function(data){
+    renderProfit(data);
+  }).catch(function(e){
+    box.innerHTML = '<div class="center" style="color:var(--red);">拉取失败：'+esc(e.message)+'<br><span style="font-size:12px;">可能原因：CORS限制或网络问题</span></div>';
+  }).finally(function(){
+    btn.disabled = false;
+    btn.textContent = '刷新';
+  });
+}
+
+async function loadProfitData(token, secret){
+  var ak = await getAccessKey(token, secret);
+  // 拉取前10页消息（覆盖今天和前几天的数据）
+  var allMsgs = [];
+  var pageErrors = [];
+  for(var page=1; page<=10; page++){
+    try{
+      var list = await getMessageList(ak, page, 50);
+      if(!list.length) break;
+      allMsgs = allMsgs.concat(list);
+      if(list.length < 50) break;
+    }catch(e){
+      console.error('[LoadProfit] 第'+page+'页拉取失败: '+e.message);
+      pageErrors.push('第'+page+'页: '+e.message);
+      // 如果已经连续2页失败，大概率后面也没数据了，提前退出
+      if(pageErrors.length >= 2) break;
+      // 否则继续尝试下一页
+    }
+  }
+
+  // 筛选种树完成消息，并按日期分组
+  var planting = [];
+  for(var i=0; i<allMsgs.length; i++){
+    var m = allMsgs[i];
+    var title = m.title || '';
+    var sc = m.shortCode || '';
+    if(!sc || sc=='test123' || sc=='88888888') continue;
+    if(title.indexOf('种树完成')<0) continue;
+    if(title.indexOf('[AI分析]')==0 || title.indexOf('[告警]')==0 || title.indexOf('[汇总报告]')==0 || title.indexOf('[每日统计]')==0) continue;
+    var pt = m.updateTime || '';
+    var dateStr = pt ? pt.split(' ')[0] : '';
+    planting.push({account:title.replace('种树完成','').trim(), shortCode:sc, pushTime:pt, dateStr:dateStr});
+  }
+
+  // 按日期分组
+  var byDate = {};
+  for(var i=0; i<planting.length; i++){
+    var ds = planting[i].dateStr;
+    if(!ds) continue;
+    if(!byDate[ds]) byDate[ds] = [];
+    byDate[ds].push(planting[i]);
+  }
+
+  var now = new Date();
+  var todayStr = fmt(now).split(' ')[0];
+
+  // 详情缓存（本次刷新内复用，避免重复请求）
+  var detailCache = {};
+
+  // 并行批量获取详情辅助函数（限制并发数，每批5个）
+  async function fetchDetailsBatch(items){
+    var results = [];
+    var batchSize = 5; // 每批并发5个，避免过多请求导致代理限流
+    for(var i=0; i<items.length; i+=batchSize){
+      var batch = items.slice(i, i+batchSize);
+      var promises = batch.map(function(item){
+        if(detailCache[item.shortCode]) return Promise.resolve(detailCache[item.shortCode]);
+        return retryAsync(function(){
+          return getMessageDetail(item.shortCode);
+        }, 1, 500).then(function(detail){
+          detailCache[item.shortCode] = detail;
+          return detail;
+        }).catch(function(){
+          var fallback = {title: item.account+'种树完成', content: '', pushTime: item.pushTime};
+          detailCache[item.shortCode] = fallback;
+          return fallback;
+        });
+      });
+      var batchResults = await Promise.all(promises);
+      results = results.concat(batchResults);
+    }
+    return results;
+  }
+
+  // === 处理所有日期的数据（不再保存到 localStorage，每次都从 PushPlus 实时计算） ===
+  var allSnapshots = [];
+  var dateKeys = Object.keys(byDate).sort(); // 按日期升序
+
+  for(var di=0; di<dateKeys.length; di++){
+    var ds = dateKeys[di];
+    var dayMsgs = byDate[ds];
+
+    // 按账号去重，保留当天最新的
+    var dayLatest = {};
+    for(var i=0; i<dayMsgs.length; i++){
+      var a = dayMsgs[i].account;
+      if(!dayLatest[a] || dayMsgs[i].pushTime > dayLatest[a].pushTime){
+        dayLatest[a] = dayMsgs[i];
+      }
+    }
+
+    // 并行获取每个账号当天最新消息详情
+    var dayItems = Object.values(dayLatest);
+    var dayDetails = await fetchDetailsBatch(dayItems);
+
+    var dayAccounts = [];
+    var dayTotalProfit = 0, dayTotalPlanted = 0;
+
+    for(var i=0; i<dayItems.length; i++){
+      var detail = dayDetails[i];
+      var data = parsePlanting(detail.title || dayItems[i].account+'种树完成', detail.content);
+      data.push_time = detail.pushTime || dayItems[i].pushTime;
+      dayTotalProfit += data.total_profit;
+      dayTotalPlanted += data.planted;
+      dayAccounts.push(data);
+    }
+
+    if(dayAccounts.length > 0){
+      allSnapshots.push({
+        date: ds,
+        timestamp: new Date(ds.replace(/-/g,'/')+' 00:00:00').getTime(),
+        total_profit: dayTotalProfit,
+        total_planted: dayTotalPlanted,
+        account_count: dayAccounts.length,
+        accounts: dayAccounts
+      });
+    }
+  }
+
+  // 如果今天没有消息，回退到使用所有消息中最新的那一天作为"今天"
+  var todaySnapshot = null;
+  for(var i=0; i<allSnapshots.length; i++){
+    if(allSnapshots[i].date === todayStr){
+      todaySnapshot = allSnapshots[i];
+      break;
+    }
+  }
+  if(!todaySnapshot && allSnapshots.length > 0){
+    todaySnapshot = allSnapshots[allSnapshots.length - 1];
+  }
+
+  // 构建今天的收益面板数据
+  var accounts = [];
+  var totalProfit = 0, totalPlanted = 0, timeoutCount = 0;
+  if(todaySnapshot){
+    for(var i=0; i<todaySnapshot.accounts.length; i++){
+      var acc = JSON.parse(JSON.stringify(todaySnapshot.accounts[i])); // 深拷贝避免修改 snapshot
+      var elapsed = -1, status = '未知';
+      try{
+        var pt = new Date(acc.push_time.replace(/-/g,'/'));
+        elapsed = Math.floor((now - pt)/60000);
+        var threshold = parseInt(document.getElementById('timeoutMin').value, 10);
+        if(isNaN(threshold) || threshold < 1) threshold = 45;
+        if(timeoutEnabled && elapsed > threshold){status='超时';timeoutCount++;}
+        else{status='正常';}
+      }catch(e){}
+      acc.elapsed_min = elapsed;
+      acc.status = status;
+      acc.short_code = ''; // snapshot 中没有 short_code
+      totalProfit += acc.total_profit;
+      totalPlanted += acc.planted;
+      accounts.push(acc);
+    }
+    accounts.sort(function(a,b){return b.push_time > a.push_time ? 1 : -1;});
+  }
+
+  return {accounts:accounts, total_profit:totalProfit, total_planted:totalPlanted, timeout_count:timeoutCount, now_ts:now.getTime(), snapshots:allSnapshots, page_errors:pageErrors};
+}
+
+function renderProfit(d){
+  var now = new Date(d.now_ts);
+  document.getElementById('lastUpdate').textContent = '更新于 '+fmt(now);
+
+  var h = '';
+  h += '<div class="summary fade">';
+  h += '<div class="s-card g"><div class="l">累计收益</div><div class="v">'+d.total_profit.toLocaleString()+'<span class="u"> 万</span></div></div>';
+  h += '<div class="s-card b"><div class="l">账号</div><div class="v">'+d.accounts.length+'<span class="u"> 个</span></div></div>';
+  h += '<div class="s-card o"><div class="l">种植</div><div class="v">'+d.total_planted.toLocaleString()+'<span class="u"> 棵</span></div></div>';
+  h += '</div>';
+
+  if(d.timeout_count>0){
+    h += '<div class="sbar warn fade">'+d.timeout_count+' 个账号超时未推送</div>';
+    // 触发声音告警
+    if(soundEnabled){
+      startAlertLoop();
+    }
+  }else{
+    h += '<div class="sbar ok fade">全部账号正常</div>';
+    // 超时解除，停止告警
+    stopAlertLoop();
+  }
+
+  // 显示分页拉取错误（如果有）
+  if(d.page_errors && d.page_errors.length > 0){
+    h += '<div class="sbar warn fade" style="background:rgba(248,113,113,0.12);color:var(--red);border-color:rgba(248,113,113,0.3);">部分消息拉取失败（'+d.page_errors.length+'页），数据可能不完整，建议再次刷新</div>';
+  }
+
+  h += '<div class="alist">';
+  d.accounts.forEach(function(p,i){
+    var sc = p.status==='正常'?'ok':(p.status==='超时'?'to':'un');
+    var avg = p.avg_profit!==null?p.avg_profit.toFixed(1)+'万':'-';
+    // 无树苗时添加红色边框样式
+    var cardStyle = 'animation-delay:'+(i*40)+'ms;';
+    if(p.no_seedling) cardStyle += 'border:2px solid var(--red);background:rgba(248,113,113,0.08);';
+    h += '<div class="acard '+sc+' fade" style="'+cardStyle+'">';
+    h += '<div class="arow1"><span class="aname">'+esc(p.account)+'</span>';
+    if(p.no_seedling) h += '<span class="atag" style="background:var(--red);color:#fff;border-color:var(--red);">无树苗</span>';
+    h += '<span class="atag '+sc+'">'+p.status+'</span></div>';
+    h += '<div class="aprof">'+redNeg(p.total_profit)+'<span class="u"> 万</span></div>';
+    h += '<div class="adet">';
+    h += '<span>种植 <b>'+p.planted+'</b> 棵</span>';
+    h += '<span>平均 <b>'+(p.avg_profit!==null?redNeg(p.avg_profit)+'万':'-')+'</b></span>';
+    h += '<span>单棵 <b>'+redNeg(p.single_profit,'万')+'</b></span>';
+    h += '<span>距今 <b>'+p.elapsed_min+'分</b></span>';
+    h += '<span>在线 <b>'+p.online_min+'分</b></span>';
+    h += '<span>摇晃 <b>'+p.shake+'次</b></span>';
+    if(p.cash > 0) h += '<span>现金 <b>'+p.cash.toLocaleString()+'</b></span>';
+    h += '</div>';
+    // 摇晃>=11次触发语音提醒
+    if(p.shake >= 11){
+      speakShakeAlert(p.account, p.shake);
+    }
+    // 现金超过1000万触发语音提醒
+    if(p.cash > CASH_THRESHOLD){
+      speakCashAlert(p.account, p.cash);
+    }
+    h += '<div class="atime">'+esc(p.push_time)+'</div>';
+    h += '</div>';
+  });
+  h += '</div>';
+
+  document.getElementById('box').innerHTML = h;
+
+  // 渲染历史对比（使用实时拉取的数据，不再读取 localStorage）
+  renderHistoricalComparison(d.snapshots || []);
+}
+
+// ===== 消息查看 =====
+function fetchMessages(){
+  var token = document.getElementById('ppToken').value.trim();
+  var secret = document.getElementById('ppSecret').value.trim();
+  var btn = document.getElementById('btnFetch');
+  var box = document.getElementById('msgBox');
+
+  if(!token || !secret){
+    box.innerHTML = '<div class="center" style="color:var(--red);">请填写 Token 和 SecretKey</div>';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '正在拉取...';
+  box.innerHTML = '<div class="center"><div class="spin"></div><div>正在获取消息...</div></div>';
+
+  fetchCustomMessages(token, secret).then(function(messages){
+    if(!messages.length){
+      box.innerHTML = '<div class="center">没有消息</div>';
+      return;
+    }
+    var h = '';
+    messages.forEach(function(m,i){
+      h += '<div class="msg-card fade" style="animation-delay:'+(i*30)+'ms;">';
+      h += '<div class="mt">'+esc(m.title)+'</div>';
+      if(m.content) h += '<div class="mc">'+esc(m.content)+'</div>';
+      h += '<div class="mt2">'+esc(m.push_time)+'</div>';
+      h += '</div>';
+    });
+    box.innerHTML = h;
+  }).catch(function(e){
+    box.innerHTML = '<div class="center" style="color:var(--red);">拉取失败：'+esc(e.message)+'<br><span style="font-size:12px;">可能原因：CORS限制或网络问题</span></div>';
+  }).finally(function(){
+    btn.disabled = false;
+    btn.textContent = '拉取消息';
+  });
+}
+
+async function fetchCustomMessages(token, secret){
+  var ak = await getAccessKey(token, secret);
+  var list = await getMessageList(ak, 1, 20);
+
+  // 限制并发获取详情，每批5个
+  var results = [];
+  var batchSize = 5;
+  for(var i=0; i<list.length; i+=batchSize){
+    var batch = list.slice(i, i+batchSize);
+    var promises = batch.map(function(m){
+      var sc = m.shortCode || '';
+      var title = m.title || '';
+      var pushTime = m.updateTime || '';
+      if(!sc || sc=='test123' || sc=='88888888'){
+        return Promise.resolve({title:title, content:'', push_time:pushTime, short_code:sc});
+      }
+      return retryAsync(function(){
+        return getMessageDetail(sc);
+      }, 1, 500).then(function(detail){
+        return {
+          title: detail.title || title,
+          content: detail.content ? detail.content.substring(0,500) : '',
+          push_time: detail.pushTime || pushTime,
+          short_code: sc
+        };
+      }).catch(function(){
+        return {title:title, content:'', push_time:pushTime, short_code:sc};
+      });
+    });
+    var batchResults = await Promise.all(promises);
+    results = results.concat(batchResults);
+  }
+  return results;
+}
+
+// ===== 历史快照存储 =====
+function saveDailySnapshot(data){
+  var now = new Date(data.now_ts);
+  var dateStr = fmt(now).split(' ')[0]; // YYYY-MM-DD
+  var snapshot = {
+    date: dateStr,
+    timestamp: data.now_ts,
+    total_profit: data.total_profit,
+    total_planted: data.total_planted,
+    account_count: data.accounts.length,
+    accounts: data.accounts.map(function(a){
+      return {
+        account: a.account,
+        total_profit: a.total_profit,
+        planted: a.planted,
+        avg_profit: a.avg_profit,
+        single_profit: a.single_profit,
+        online_min: a.online_min,
+        shake: a.shake
+      };
+    })
+  };
+  // 保存当天快照（同一天多次刷新只保留最后一次）
+  localStorage.setItem('pp_snap_'+dateStr, JSON.stringify(snapshot));
+
+  // 清理超过30天的旧快照
+  var keys = [];
+  for(var i=0; i<localStorage.length; i++){
+    var k = localStorage.key(i);
+    if(k && k.indexOf('pp_snap_')===0) keys.push(k);
+  }
+  var cutoff = new Date(now.getTime() - 30*24*60*60*1000);
+  var cutoffStr = fmt(cutoff).split(' ')[0];
+  keys.forEach(function(k){
+    var dk = k.replace('pp_snap_','');
+    if(dk < cutoffStr) localStorage.removeItem(k);
+  });
+}
+
+function loadSnapshots(){
+  var snaps = [];
+  for(var i=0; i<localStorage.length; i++){
+    var k = localStorage.key(i);
+    if(k && k.indexOf('pp_snap_')===0){
+      try{
+        var s = JSON.parse(localStorage.getItem(k));
+        snaps.push(s);
+      }catch(e){}
+    }
+  }
+  snaps.sort(function(a,b){return a.date < b.date ? -1 : 1;});
+  return snaps;
+}
+
+// ===== 历史对比渲染 =====
+// externalSnapshots: 从 PushPlus 实时拉取的快照数组（优先使用），不传则回退到 localStorage
+function renderHistoricalComparison(externalSnapshots){
+  var box = document.getElementById('cmpBox');
+  var snaps = (externalSnapshots && externalSnapshots.length > 0) ? externalSnapshots : loadSnapshots();
+
+  if(snaps.length === 0){
+    box.innerHTML = '';
+    return;
+  }
+
+  var h = '';
+  h += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">';
+  h += '<div style="font-size:13px;font-weight:700;color:var(--purple);margin-bottom:12px;">历史对比</div>';
+
+  var latest = snaps[snaps.length-1];
+  var prev = snaps.length >= 2 ? snaps[snaps.length-2] : null;
+
+  // === 1. 对比摘要 ===
+  if(prev){
+    var diffProfit = latest.total_profit - prev.total_profit;
+    var diffPlanted = latest.total_planted - prev.total_planted;
+    var profitClass = diffProfit > 0 ? 'up' : (diffProfit < 0 ? 'down' : 'flat');
+    var profitSign = diffProfit > 0 ? '+' : '';
+    var plantedClass = diffPlanted > 0 ? 'up' : (diffPlanted < 0 ? 'down' : 'flat');
+    var plantedSign = diffPlanted > 0 ? '+' : '';
+
+    h += '<div class="cmp-summary fade">';
+    h += '<div class="cmp-diff-card"><div class="l">今日累计收益</div><div class="v" style="color:var(--green);">'+latest.total_profit.toLocaleString()+'<span style="font-size:11px;color:var(--t3);"> 万</span></div><div class="sub">'+latest.date+'</div></div>';
+    h += '<div class="cmp-diff-card"><div class="l">对比'+prev.date+'</div><div class="v '+profitClass+'">'+redNeg(diffProfit,'<span style="font-size:11px;color:var(--t3);"> 万</span>')+'</div><div class="sub">'+(diffProfit>0?'增加':(diffProfit<0?'减少':'持平'))+'</div></div>';
+    h += '<div class="cmp-diff-card"><div class="l">种植变化</div><div class="v '+plantedClass+'">'+redNeg(diffPlanted,'<span style="font-size:11px;color:var(--t3);"> 棵</span>')+'</div><div class="sub">'+(diffPlanted>0?'增加':(diffPlanted<0?'减少':'持平'))+'</div></div>';
+    h += '</div>';
+  }else{
+    h += '<div class="cmp-summary fade"><div class="cmp-diff-card"><div class="l">今日累计收益</div><div class="v" style="color:var(--green);">'+latest.total_profit.toLocaleString()+'<span style="font-size:11px;color:var(--t3);"> 万</span></div><div class="sub">'+latest.date+'</div></div></div>';
+    h += '<div class="note">仅有一天的数据，无法对比。明天刷新后会自动生成对比。</div>';
+  }
+
+  // === 2. 逐日对比表 ===
+  if(snaps.length >= 2){
+    h += '<div class="cmp-table fade">';
+    h += '<div class="cmp-table-head"><span class="col1" style="flex:1.8;">日期</span><span class="col2" style="flex:1.3;text-align:right;">累计收益</span><span class="col3" style="flex:1;text-align:right;">种植</span><span class="col4" style="flex:0.8;text-align:right;">账号</span><span class="col5" style="flex:1.2;text-align:right;color:var(--red);">亏损</span><span class="col6" style="flex:1;text-align:right;">日增减</span></div>';
+    for(var i=snaps.length-1; i>=0; i--){
+      var s = snaps[i];
+      var delta = '';
+      if(i > 0){
+        var d = s.total_profit - snaps[i-1].total_profit;
+        var cls = d > 0 ? 'cmp-delta-up' : (d < 0 ? 'cmp-delta-down' : 'cmp-delta-flat');
+        delta = '<span class="'+cls+'">'+redNeg(d)+'</span>';
+      }else{
+        delta = '<span class="cmp-delta-flat">-</span>';
+      }
+      // 计算当天亏损账号数（日收益变化 < 0）
+      var lossCount = 0;
+      if(i > 0){
+        var prevSnap = snaps[i-1];
+        var prevAccMap = {};
+        if(prevSnap.accounts){
+          prevSnap.accounts.forEach(function(acc){ prevAccMap[acc.account] = acc.total_profit; });
+        }
+        if(s.accounts){
+          s.accounts.forEach(function(acc){
+            var prevVal = prevAccMap[acc.account];
+            if(prevVal !== undefined && acc.total_profit < prevVal){
+              lossCount++;
+            }
+          });
+        }
+      }
+      var lossText = lossCount > 0 ? '<span style="color:var(--red);font-weight:700;">'+lossCount+'个账号</span>' : '<span style="color:var(--t3);">无</span>';
+      h += '<div class="cmp-table-row"><span class="col1" style="flex:1.8;">'+s.date+'</span><span class="col2" style="flex:1.3;text-align:right;color:var(--green);font-weight:700;">'+s.total_profit.toLocaleString()+'</span><span class="col3" style="flex:1;text-align:right;">'+s.total_planted.toLocaleString()+'</span><span class="col4" style="flex:0.8;text-align:right;">'+s.account_count+'</span><span class="col5" style="flex:1.2;text-align:right;">'+lossText+'</span><span class="col6" style="flex:1;text-align:right;">'+delta+'</span></div>';
+    }
+    h += '</div>';
+  }
+
+  // === 3. 每日每个账号盈亏矩阵 ===
+  if(snaps.length >= 1){
+    // 收集所有账号名和日期，并计算每日盈亏（当天累计 - 前一天累计）
+    var allAccounts = {};
+    var rawProfits = {}; // 保存原始累计收益用于计算累计列
+    var dates = snaps.map(function(s){return s.date;});
+
+    snaps.forEach(function(snap, idx){
+      if(snap.accounts){
+        var prevSnap = idx > 0 ? snaps[idx-1] : null;
+        var prevAccMap = {};
+        if(prevSnap && prevSnap.accounts){
+          prevSnap.accounts.forEach(function(acc){ prevAccMap[acc.account] = acc.total_profit; });
+        }
+        snap.accounts.forEach(function(acc){
+          if(!allAccounts[acc.account]) allAccounts[acc.account] = {};
+          if(!rawProfits[acc.account]) rawProfits[acc.account] = {};
+          rawProfits[acc.account][snap.date] = acc.total_profit;
+          if(prevAccMap[acc.account] !== undefined){
+            // 有前一天数据，盈亏 = 当天累计 - 前一天累计
+            allAccounts[acc.account][snap.date] = acc.total_profit - prevAccMap[acc.account];
+          }else{
+            // 第一天，盈亏 = 累计收益本身（从0开始）
+            allAccounts[acc.account][snap.date] = acc.total_profit;
+          }
+        });
+      }
+    });
+
+    var accNames = Object.keys(allAccounts);
+    // 按最新一天盈亏降序排
+    accNames.sort(function(a,b){
+      var va = allAccounts[a][latest.date] || 0;
+      var vb = allAccounts[b][latest.date] || 0;
+      return vb - va;
+    });
+
+    h += '<div class="cmp-acc-detail fade" style="overflow-x:auto;">';
+    h += '<div class="cmp-acc-detail-title">每日各账号盈亏 (万)</div>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:400px;">';
+    // 表头
+    h += '<thead><tr style="background:var(--card2);">';
+    h += '<th style="padding:8px 6px;text-align:left;border-bottom:1px solid var(--border);font-weight:700;color:var(--t2);">账号</th>';
+    dates.forEach(function(ds){
+      var isLatest = ds === latest.date;
+      h += '<th style="padding:8px 6px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;color:'+(isLatest?'var(--purple)':'var(--t2)')+';white-space:nowrap;">'+ds.substring(5)+'</th>';
+    });
+    h += '<th style="padding:8px 6px;text-align:right;border-bottom:1px solid var(--border);font-weight:700;color:var(--orange);">累计</th>';
+    h += '</tr></thead><tbody>';
+
+    // 每行一个账号
+    accNames.forEach(function(name){
+      // 以最新一天盈亏判断是否标注亏损
+      var latestProfit = allAccounts[name][latest.date];
+      var isLossToday = latestProfit !== undefined && latestProfit < 0;
+      var rowStyle = isLossToday ? 'border-bottom:1px solid var(--border);background:rgba(248,113,113,0.08);' : 'border-bottom:1px solid var(--border);';
+      var nameStyle = isLossToday ? 'padding:8px 6px;text-align:left;color:var(--red);font-weight:700;' : 'padding:8px 6px;text-align:left;color:var(--t1);font-weight:600;';
+      var namePrefix = isLossToday ? '<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--red);margin-right:4px;vertical-align:middle;"></span>' : '';
+      h += '<tr style="'+rowStyle+'">';
+      h += '<td style="'+nameStyle+'">'+namePrefix+esc(name)+'</td>';
+      dates.forEach(function(ds){
+        var val = allAccounts[name][ds];
+        var isLatest = ds === latest.date;
+        if(val !== undefined){
+          // 盈亏：正=绿，负=红，0=灰
+          var color = val < 0 ? 'var(--red)' : (val > 0 ? (isLatest ? 'var(--green)' : 'var(--t2)') : 'var(--t3)');
+          h += '<td style="padding:8px 6px;text-align:right;color:'+color+';font-weight:'+(isLatest?'700':'400')+';">'+redNeg(val)+'</td>';
+        }else{
+          h += '<td style="padding:8px 6px;text-align:right;color:var(--t3);">-</td>';
+        }
+      });
+      // 累计列：最后一天累计收益 - 最早累计收益（即总盈亏）
+      var firstVal = null, lastVal = null;
+      dates.forEach(function(ds){
+        var v = rawProfits[name][ds];
+        if(v !== undefined){
+          if(firstVal === null) firstVal = v;
+          lastVal = v;
+        }
+      });
+      if(firstVal !== null && lastVal !== null && dates.length >= 1){
+        var diff = lastVal - firstVal;
+        var cls = diff > 0 ? 'cmp-delta-up' : (diff < 0 ? 'cmp-delta-down' : 'cmp-delta-flat');
+        h += '<td style="padding:8px 6px;text-align:right;"><span class="'+cls+'" style="font-weight:600;">'+redNeg(diff)+'</span></td>';
+      }else{
+        h += '<td style="padding:8px 6px;text-align:right;color:var(--t3);">-</td>';
+      }
+      h += '</tr>';
+    });
+
+    // 合计行
+    h += '<tr style="border-top:2px solid var(--border);background:var(--card2);">';
+    h += '<td style="padding:8px 6px;text-align:left;font-weight:700;color:var(--t1);">合计</td>';
+    dates.forEach(function(ds){
+      var total = 0;
+      accNames.forEach(function(n){
+        if(allAccounts[n][ds] !== undefined) total += allAccounts[n][ds];
+      });
+      var isLatest = ds === latest.date;
+      h += '<td style="padding:8px 6px;text-align:right;font-weight:700;color:'+(isLatest?'var(--green)':'var(--t1)')+';">'+redNeg(total)+'</td>';
+    });
+    // 合计累计 = 最后一天总累计 - 第一天总累计
+    var firstTotal = null, lastTotal = null;
+    dates.forEach(function(ds){
+      var total = 0;
+      accNames.forEach(function(n){
+        if(rawProfits[n][ds] !== undefined) total += rawProfits[n][ds];
+      });
+      if(firstTotal === null) firstTotal = total;
+      lastTotal = total;
+    });
+    if(firstTotal !== null && lastTotal !== null && dates.length >= 1){
+      var totalDiff = lastTotal - firstTotal;
+      var tcls = totalDiff > 0 ? 'cmp-delta-up' : (totalDiff < 0 ? 'cmp-delta-down' : 'cmp-delta-flat');
+      h += '<td style="padding:8px 6px;text-align:right;"><span class="'+tcls+'" style="font-weight:700;">'+redNeg(totalDiff)+'</span></td>';
+    }else{
+      h += '<td style="padding:8px 6px;text-align:right;color:var(--t3);">-</td>';
+    }
+    h += '</tr>';
+
+    h += '</tbody></table>';
+    h += '</div>';
+  }
+
+  h += '</div>'; // 关闭历史对比容器
+  box.innerHTML = h;
+}
+
+// ===== Tab切换 =====
+function switchTab(n){
+  var t1=document.getElementById('tab1'),t2=document.getElementById('tab2');
+  var c1=document.getElementById('tab1Content'),c2=document.getElementById('tab2Content');
+  if(n===1){
+    t1.classList.add('active');t2.classList.remove('active');
+    c1.style.display='';c2.classList.remove('active');
+  }else{
+    t2.classList.add('active');t1.classList.remove('active');
+    c1.style.display='none';c2.classList.add('active');
+  }
+}
+
+// ===== 自动刷新 =====
+function getAutoMs(){
+  var min = parseInt(document.getElementById('autoMin').value, 10);
+  if(isNaN(min) || min < 1) min = 5;
+  return min * 60 * 1000;
+}
+
+function startTimer(){
+  if(timer){ clearInterval(timer); timer = null; }
+  if(!autoOn) return;
+  var ms = getAutoMs();
+  var min = Math.round(ms / 60000);
+  console.log('[自动刷新] 启动，间隔 '+min+' 分钟（'+ms+' 毫秒）');
+  timer = setInterval(function(){loadProfit(false);}, ms);
+}
+
+function stopTimer(){
+  if(timer){ clearInterval(timer); timer = null; console.log('[自动刷新] 已停止'); }
+}
+
+function toggleAutoRefresh(){
+  autoOn = !autoOn;
+  var tag = document.getElementById('autoTag');
+  var input = document.getElementById('autoMin');
+  if(autoOn){
+    tag.textContent = '自动刷新功能 开';
+    tag.classList.add('on');
+    tag.style.color = 'var(--green)';
+    tag.style.borderColor = 'rgba(74,222,128,0.3)';
+    input.style.borderColor = 'rgba(74,222,128,0.3)';
+    startTimer();
+    localStorage.setItem('pp_auto_on','1');
+  }else{
+    tag.textContent = '自动刷新功能 关';
+    tag.classList.remove('on');
+    tag.style.color = 'var(--t3)';
+    tag.style.borderColor = 'var(--border)';
+    input.style.borderColor = 'var(--border)';
+    stopTimer();
+    localStorage.setItem('pp_auto_on','0');
+  }
+}
+
+// 保存超时阈值
+document.getElementById('timeoutMin').addEventListener('change',function(){
+  localStorage.setItem('pp_timeout_min', this.value);
+});
+
+// 恢复自动刷新设置
+var savedAutoOn = localStorage.getItem('pp_auto_on');
+var savedAutoMin = localStorage.getItem('pp_auto_min');
+var savedTimeoutMin = localStorage.getItem('pp_timeout_min');
+if(savedAutoMin){
+  var v = parseInt(savedAutoMin, 10);
+  if(!isNaN(v) && v >= 1) document.getElementById('autoMin').value = v;
+}
+if(savedTimeoutMin){
+  var tv = parseInt(savedTimeoutMin, 10);
+  if(!isNaN(tv) && tv >= 1) document.getElementById('timeoutMin').value = tv;
+}
+if(savedAutoOn === '1'){
+  autoOn = true;
+  var tag = document.getElementById('autoTag');
+  var input = document.getElementById('autoMin');
+  tag.textContent = '自动刷新功能 开';
+  tag.classList.add('on');
+  tag.style.color = 'var(--green)';
+  tag.style.borderColor = 'rgba(74,222,128,0.3)';
+  input.style.borderColor = 'rgba(74,222,128,0.3)';
+}
+
+// 保存自动刷新间隔
+document.getElementById('autoMin').addEventListener('change',function(){
+  localStorage.setItem('pp_auto_min', this.value);
+});
+
+document.addEventListener('visibilitychange',function(){
+  if(document.hidden){ stopTimer(); }
+  else if(autoOn){ loadProfit(false); startTimer(); }
+});
+
+// 检查是否有保存的凭据
+var savedToken = localStorage.getItem('pp_token');
+var savedSecret = localStorage.getItem('pp_secret');
+if(savedToken) document.getElementById('ppToken').value = savedToken;
+if(savedSecret) document.getElementById('ppSecret').value = savedSecret;
+
+// 自动保存凭据
+document.getElementById('ppToken').addEventListener('change',function(){localStorage.setItem('pp_token',this.value);});
+document.getElementById('ppSecret').addEventListener('change',function(){localStorage.setItem('pp_secret',this.value);});
+
+// 如果有凭据，自动加载
+if(savedToken && savedSecret){
+  loadProfit(false);
+  if(autoOn) startTimer();
+}else{
+  // 没有凭据时，也显示已有的历史对比数据
+  renderHistoricalComparison();
+}
+
+// 恢复超时检测开关设置（同时控制声音）
+var savedTimeoutOn = localStorage.getItem('pp_timeout_on');
+if(savedTimeoutOn === '0'){
+  timeoutEnabled = false;
+  soundEnabled = false;
+  var ttag = document.getElementById('timeoutTag');
+  ttag.textContent = '超时检测 关';
+  ttag.style.color = 'var(--t3)';
+  ttag.style.borderColor = 'var(--border)';
+}else{
+  // 默认或明确开启时，声音也开启
+  soundEnabled = true;
+}
+
+// 恢复收钱提醒设置
+if(localStorage.getItem('pp_cash_alert') === '1'){
+  cashAlertEnabled = true;
+  var ctag = document.getElementById('cashTag');
+  ctag.textContent = '收钱 开';
+  ctag.style.color = 'var(--green)';
+  ctag.style.borderColor = 'rgba(74,222,128,0.3)';
+}
+</script>
+</body>
+</html>
