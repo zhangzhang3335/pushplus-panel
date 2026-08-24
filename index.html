@@ -382,7 +382,7 @@ async function corsPost(url, body, customHeaders){
     opts.body = JSON.stringify(body);
     var resp = await fetchWithTimeout(url, opts);
     if(resp.ok){
-      var text = await resp.text();
+      var _buf = await resp.arrayBuffer(); var text = new TextDecoder('utf-8').decode(_buf);
       if(text && text.trim().length > 0){
         var d;
         try { d = JSON.parse(text); } catch(e) { throw new Error('JSON解析失败'); }
@@ -407,7 +407,7 @@ async function corsPost(url, body, customHeaders){
       opts.body = JSON.stringify(body);
       var resp = await fetchWithTimeout(proxyUrl, opts);
       if(!resp.ok) throw new Error('HTTP ' + resp.status);
-      var text = await resp.text();
+      var _buf = await resp.arrayBuffer(); var text = new TextDecoder('utf-8').decode(_buf);
       if(!text || text.trim().length === 0) throw new Error('空响应');
       var d;
       try { d = JSON.parse(text); } catch(e) { throw new Error('JSON解析失败'); }
@@ -431,7 +431,7 @@ async function corsGet(url){
   try{
     var resp = await fetchWithTimeout(url, {method:'GET'});
     if(resp.ok){
-      var text = await resp.text();
+      var _buf = await resp.arrayBuffer(); var text = new TextDecoder('utf-8').decode(_buf);
       if(text && text.trim().length > 0){
         console.log('[DIRECT] GET 成功');
         return text;
@@ -450,7 +450,7 @@ async function corsGet(url){
     try{
       var resp = await fetchWithTimeout(proxyUrl, {method:'GET'});
       if(!resp.ok) throw new Error('HTTP ' + resp.status);
-      var text = await resp.text();
+      var _buf = await resp.arrayBuffer(); var text = new TextDecoder('utf-8').decode(_buf);
       if(!text || text.trim().length === 0) throw new Error('空响应');
       proxyIdx = idx;
       proxyFailCount[idx] = 0;
