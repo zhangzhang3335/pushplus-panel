@@ -740,10 +740,10 @@ function loadProfit(fromBtn){
 
 async function loadProfitData(token, secret){
   var ak = await getAccessKey(token, secret);
-  // 拉取前10页消息（覆盖今天和前几天的数据）
-  var allMsgs = [];
+  // 拉取前15页消息（覆盖最近5天以上的数据）
   var pageErrors = [];
-  for(var page=1; page<=10; page++){
+  var allMsgs = [];
+  for(var page=1; page<=15; page++){
     try{
       var list = await getMessageList(ak, page, 50);
       if(!list.length) break;
@@ -1094,6 +1094,11 @@ function renderHistoricalComparison(externalSnapshots){
   var box = document.getElementById('cmpBox');
   var snaps = (externalSnapshots && externalSnapshots.length > 0) ? externalSnapshots : loadSnapshots();
 
+  // 限制显示最近5天
+  if(snaps.length > 5){
+    snaps = snaps.slice(snaps.length - 5);
+  }
+
   if(snaps.length === 0){
     box.innerHTML = '';
     return;
@@ -1101,7 +1106,7 @@ function renderHistoricalComparison(externalSnapshots){
 
   var h = '';
   h += '<div style="margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid var(--border);">';
-  h += '<div style="font-size:13px;font-weight:700;color:var(--purple);margin-bottom:12px;">历史对比</div>';
+  h += '<div style="font-size:13px;font-weight:700;color:var(--purple);margin-bottom:12px;">历史对比（最近5天）</div>';
 
   var latest = snaps[snaps.length-1];
   var prev = snaps.length >= 2 ? snaps[snaps.length-2] : null;
