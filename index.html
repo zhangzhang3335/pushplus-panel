@@ -809,22 +809,33 @@ async function loadProfitData(token, secret){
       allMsgs = globalAllMsgs;
       hasNewData = false;
     }else{
-      // 有新消息，继续拉取后续页直到没有新消息
+      // 有新消息，并行批量拉取后续页，直到某批全部是重复消息
       if(page1.length >= 50){
-        for(var page=2; page<=100; page++){
-          var pageList = await getMessageList(ak, page, 50).catch(function(e){
-            pageErrors.push('第'+page+'页: '+e.message);
-            return null;
-          });
-          if(!pageList || !pageList.length) break;
-          var hasNew = false;
-          for(var i=0; i<pageList.length; i++){
-            if(!globalSeenShortCodes[pageList[i].shortCode]){
-              newMsgs.push(pageList[i]);
-              hasNew = true;
+        var incBatch = 5;
+        for(var ps=2; ps<=100; ps+=incBatch){
+          var pe = Math.min(ps + incBatch - 1, 100);
+          var pagesArr = [];
+          for(var p=ps; p<=pe; p++) pagesArr.push(p);
+          var resultsInc = await Promise.all(pagesArr.map(function(page){
+            return getMessageList(ak, page, 50).catch(function(e){
+              pageErrors.push('第'+page+'页: '+e.message);
+              return [];
+            });
+          }));
+          var batchHasNew = false;
+          var batchHasFullPage = false;
+          for(var r=0; r<resultsInc.length; r++){
+            if(resultsInc[r].length === 0) continue;
+            if(resultsInc[r].length >= 50) batchHasFullPage = true;
+            for(var i=0; i<resultsInc[r].length; i++){
+              if(!globalSeenShortCodes[resultsInc[r][i].shortCode]){
+                newMsgs.push(resultsInc[r][i]);
+                batchHasNew = true;
+              }
             }
           }
-          if(!hasNew || pageList.length < 50) break;
+          // 整批无新消息或最后一页不满，说明已读完全部新消息
+          if(!batchHasNew || !batchHasFullPage) break;
         }
       }
       // 合并新消息到缓存
