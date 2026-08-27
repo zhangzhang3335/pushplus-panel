@@ -1032,65 +1032,21 @@ async function fetchCustomMessages(token, secret){
   return results;
 }
 
-// ===== 历史快照存储 =====
-function saveDailySnapshot(data){
-  var now = new Date(data.now_ts);
-  var dateStr = fmt(now).split(' ')[0]; // YYYY-MM-DD
-  var snapshot = {
-    date: dateStr,
-    timestamp: data.now_ts,
-    total_profit: data.total_profit,
-    total_planted: data.total_planted,
-    account_count: data.accounts.length,
-    accounts: data.accounts.map(function(a){
-      return {
-        account: a.account,
-        total_profit: a.total_profit,
-        planted: a.planted,
-        avg_profit: a.avg_profit,
-        single_profit: a.single_profit,
-        online_min: a.online_min,
-        shake: a.shake
-      };
-    })
-  };
-  // 保存当天快照（同一天多次刷新只保留最后一次）
-  localStorage.setItem('pp_snap_'+dateStr, JSON.stringify(snapshot));
-
-  // 清理超过30天的旧快照
+// ===== 清理旧的本地快照数据 =====
+function cleanupOldSnapshots(){
   var keys = [];
   for(var i=0; i<localStorage.length; i++){
     var k = localStorage.key(i);
     if(k && k.indexOf('pp_snap_')===0) keys.push(k);
   }
-  var cutoff = new Date(now.getTime() - 30*24*60*60*1000);
-  var cutoffStr = fmt(cutoff).split(' ')[0];
-  keys.forEach(function(k){
-    var dk = k.replace('pp_snap_','');
-    if(dk < cutoffStr) localStorage.removeItem(k);
-  });
-}
-
-function loadSnapshots(){
-  var snaps = [];
-  for(var i=0; i<localStorage.length; i++){
-    var k = localStorage.key(i);
-    if(k && k.indexOf('pp_snap_')===0){
-      try{
-        var s = JSON.parse(localStorage.getItem(k));
-        snaps.push(s);
-      }catch(e){}
-    }
-  }
-  snaps.sort(function(a,b){return a.date < b.date ? -1 : 1;});
-  return snaps;
+  keys.forEach(function(k){ localStorage.removeItem(k); });
 }
 
 // ===== 历史对比渲染 =====
-// externalSnapshots: 从 PushPlus 实时拉取的快照数组（优先使用），不传则回退到 localStorage
+// 只使用从 PushPlus 实时拉取的数据，不读取本地存储
 function renderHistoricalComparison(externalSnapshots){
   var box = document.getElementById('cmpBox');
-  var snaps = (externalSnapshots && externalSnapshots.length > 0) ? externalSnapshots : loadSnapshots();
+  var snaps = externalSnapshots || [];
 
   // 限制显示最近5天
   if(snaps.length > 5){
@@ -1397,13 +1353,13 @@ if(savedSecret) document.getElementById('ppSecret').value = savedSecret;
 document.getElementById('ppToken').addEventListener('change',function(){localStorage.setItem('pp_token',this.value);});
 document.getElementById('ppSecret').addEventListener('change',function(){localStorage.setItem('pp_secret',this.value);});
 
+// 清理旧的本地快照数据（不再使用本地存储）
+cleanupOldSnapshots();
+
 // 如果有凭据，自动加载
 if(savedToken && savedSecret){
   loadProfit(false);
   if(autoOn) startTimer();
-}else{
-  // 没有凭据时，也显示已有的历史对比数据
-  renderHistoricalComparison();
 }
 
 // 恢复超时检测开关设置
