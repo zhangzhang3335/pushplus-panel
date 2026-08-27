@@ -342,7 +342,7 @@ var CORS_PROXIES = [
 var POST_PROXIES = CORS_PROXIES.filter(function(_, i){ return [0,1,2,5,6].indexOf(i) >= 0; });
 var proxyIdx = 0; // 当前使用的代理索引
 var proxyFailCount = {}; // 记录每个代理的连续失败次数
-var FETCH_TIMEOUT = 20000; // fetch 超时 15 秒
+var FETCH_TIMEOUT = 12000; // fetch 超时 12 秒
 
 // ===== 通用重试包装器 =====
 async function retryAsync(fn, retries, delayMs){
@@ -740,20 +740,29 @@ function loadProfit(fromBtn){
 
 async function loadProfitData(token, secret){
   var ak = await getAccessKey(token, secret);
-  // 全量拉取所有消息
+  // === 优化: 并行批量拉取消息（每批5页同时请求） ===
   var pageErrors = [];
   var allMsgs = [];
-  for(var page=1; page<=100; page++){
-    try{
-      var list = await getMessageList(ak, page, 50);
-      if(!list.length) break;
-      allMsgs = allMsgs.concat(list);
-      if(list.length < 50) break;
-    }catch(e){
-      console.error('[LoadProfit] 第'+page+'页拉取失败: '+e.message);
-      pageErrors.push('第'+page+'页: '+e.message);
-      if(pageErrors.length >= 3) break;
+  var pageBatch = 5;
+  for(var pageStart=1; pageStart<=100; pageStart+=pageBatch){
+    var pageEnd = Math.min(pageStart + pageBatch - 1, 100);
+    var pages = [];
+    for(var p=pageStart; p<=pageEnd; p++) pages.push(p);
+    var results = await Promise.all(pages.map(function(page){
+      return getMessageList(ak, page, 50).catch(function(e){
+        pageErrors.push('第'+page+'页: '+e.message);
+        return [];
+      });
+    }));
+    var hasFullPage = false;
+    for(var r=0; r<results.length; r++){
+      if(results[r].length > 0){
+        allMsgs = allMsgs.concat(results[r]);
+        if(results[r].length >= 50) hasFullPage = true;
+      }
     }
+    if(!hasFullPage) break;
+    if(pageErrors.length >= 5) break;
   }
 
   // 筛选种树完成消息，并按日期分组
@@ -782,43 +791,15 @@ async function loadProfitData(token, secret){
   var now = new Date();
   var todayStr = fmt(now).split(' ')[0];
 
-  // 详情缓存（本次刷新内复用，避免重复请求）
+  var dateKeys = Object.keys(byDate).sort();
+
+  // === 优化: 预收集所有日期的唯一详情请求，一次性并行获取 ===
   var detailCache = {};
-
-  // 并行批量获取详情辅助函数（限制并发数，每批5个）
-  async function fetchDetailsBatch(items){
-    var results = [];
-    var batchSize = 5; // 每批并发5个，避免过多请求导致代理限流
-    for(var i=0; i<items.length; i+=batchSize){
-      var batch = items.slice(i, i+batchSize);
-      var promises = batch.map(function(item){
-        if(detailCache[item.shortCode]) return Promise.resolve(detailCache[item.shortCode]);
-        return retryAsync(function(){
-          return getMessageDetail(item.shortCode);
-        }, 1, 500).then(function(detail){
-          detailCache[item.shortCode] = detail;
-          return detail;
-        }).catch(function(){
-          var fallback = {title: item.account+'种树完成', content: '', pushTime: item.pushTime};
-          detailCache[item.shortCode] = fallback;
-          return fallback;
-        });
-      });
-      var batchResults = await Promise.all(promises);
-      results = results.concat(batchResults);
-    }
-    return results;
-  }
-
-  // === 处理所有日期的数据（不再保存到 localStorage，每次都从 PushPlus 实时计算） ===
-  var allSnapshots = [];
-  var dateKeys = Object.keys(byDate).sort(); // 按日期升序
-
+  var itemMap = {};
+  var allUniqueItems = [];
   for(var di=0; di<dateKeys.length; di++){
     var ds = dateKeys[di];
     var dayMsgs = byDate[ds];
-
-    // 按账号去重，保留当天最新的
     var dayLatest = {};
     for(var i=0; i<dayMsgs.length; i++){
       var a = dayMsgs[i].account;
@@ -826,23 +807,57 @@ async function loadProfitData(token, secret){
         dayLatest[a] = dayMsgs[i];
       }
     }
-
-    // 并行获取每个账号当天最新消息详情
     var dayItems = Object.values(dayLatest);
-    var dayDetails = await fetchDetailsBatch(dayItems);
+    for(var i=0; i<dayItems.length; i++){
+      if(!itemMap[dayItems[i].shortCode]){
+        itemMap[dayItems[i].shortCode] = dayItems[i];
+        allUniqueItems.push(dayItems[i]);
+      }
+    }
+  }
 
+  // 并行获取所有详情（每批10个并发）
+  var batchSize = 10;
+  for(var i=0; i<allUniqueItems.length; i+=batchSize){
+    var batch = allUniqueItems.slice(i, i+batchSize);
+    var promises = batch.map(function(item){
+      return retryAsync(function(){
+        return getMessageDetail(item.shortCode);
+      }, 1, 500).then(function(detail){
+        detailCache[item.shortCode] = detail;
+        return detail;
+      }).catch(function(){
+        var fallback = {title: item.account+'种树完成', content: '', pushTime: item.pushTime};
+        detailCache[item.shortCode] = fallback;
+        return fallback;
+      });
+    });
+    await Promise.all(promises);
+  }
+
+  // === 使用缓存的详情处理所有日期（纯CPU计算，无网络请求） ===
+  var allSnapshots = [];
+  for(var di=0; di<dateKeys.length; di++){
+    var ds = dateKeys[di];
+    var dayMsgs = byDate[ds];
+    var dayLatest = {};
+    for(var i=0; i<dayMsgs.length; i++){
+      var a = dayMsgs[i].account;
+      if(!dayLatest[a] || dayMsgs[i].pushTime > dayLatest[a].pushTime){
+        dayLatest[a] = dayMsgs[i];
+      }
+    }
+    var dayItems = Object.values(dayLatest);
     var dayAccounts = [];
     var dayTotalProfit = 0, dayTotalPlanted = 0;
-
     for(var i=0; i<dayItems.length; i++){
-      var detail = dayDetails[i];
+      var detail = detailCache[dayItems[i].shortCode];
       var data = parsePlanting(detail.title || dayItems[i].account+'种树完成', detail.content);
       data.push_time = detail.pushTime || dayItems[i].pushTime;
       dayTotalProfit += data.total_profit;
       dayTotalPlanted += data.planted;
       dayAccounts.push(data);
     }
-
     if(dayAccounts.length > 0){
       allSnapshots.push({
         date: ds,
