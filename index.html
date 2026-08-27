@@ -17,14 +17,19 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,'Noto Sans CJK SC','WenQuanYi Micro Hei',sans-serif;
   background:var(--bg);color:var(--t1);-webkit-font-smoothing:antialiased;overflow-x:hidden;
 }
-.topbar{position:sticky;top:0;z-index:200;background:rgba(11,11,16,0.85);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);border-bottom:1px solid var(--border);}
-.topbar-in{max-width:480px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;}
-.topbar h1{font-size:16px;font-weight:700;letter-spacing:0.5px;}
+.topbar{position:sticky;top:0;z-index:200;background:rgba(11,11,16,0.88);backdrop-filter:blur(16px) saturate(180%);-webkit-backdrop-filter:blur(16px) saturate(180%);border-bottom:1px solid var(--border);}
+.topbar-in{max-width:480px;margin:0 auto;padding:10px 16px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;}
+.topbar-left{flex-shrink:0;}
+.topbar h1{font-size:15px;font-weight:700;letter-spacing:0.3px;}
 .topbar .sub{font-size:10px;color:var(--t3);margin-top:1px;}
-.topbar-right{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:6px;max-width:260px;}
-.auto-tag{font-size:10px;color:var(--t3);padding:3px 8px;border:1px solid var(--border);border-radius:6px;}
+.topbar-right{display:flex;flex-direction:column;gap:4px;align-items:flex-end;}
+.ctrl-row{display:flex;align-items:center;gap:4px;}
+.num-input{width:36px;padding:3px 2px;font-size:11px;background:var(--card);color:var(--t1);border:1px solid var(--border);border-radius:5px;text-align:center;outline:none;}
+.unit{font-size:10px;color:var(--t3);}
+.auto-tag{font-size:10px;color:var(--t3);padding:3px 8px;border:1px solid var(--border);border-radius:6px;cursor:pointer;white-space:nowrap;transition:all 0.15s;}
+.auto-tag:hover{opacity:0.85;}
 .auto-tag.on{color:var(--green);border-color:rgba(74,222,128,0.3);}
-.btn{padding:9px 18px;font-size:13px;font-weight:600;color:#fff;background:#6366f1;border:none;border-radius:8px;cursor:pointer;transition:transform 0.15s,opacity 0.15s;}
+.btn{padding:7px 16px;font-size:12px;font-weight:600;color:#fff;background:#6366f1;border:none;border-radius:8px;cursor:pointer;transition:transform 0.15s,opacity 0.15s;}
 .btn:active{transform:scale(0.95);}
 .btn:disabled{opacity:0.4;cursor:wait;}
 
@@ -116,25 +121,26 @@ body{
 <body>
 
 <div class="topbar">
-  <div class="topbar-in" style="">
-    <div>
+  <div class="topbar-in">
+    <div class="topbar-left">
       <h1>PushPlus 收益面板</h1>
       <div class="sub" id="lastUpdate">更新于 2026-08-22 11:21:46</div>
     </div>
     <div class="topbar-right">
-      <div style="display: flex; align-items: center; gap: 4px;">
-        
-        <input type="number" id="autoMin" value="5" min="1" style="width: 40px; padding: 4px 2px; font-size: 11px; background: var(--card); color: var(--t1); border-color: rgba(74, 222, 128, 0.3); border-top-style: ; border-top-width: ; border-right-style: ; border-right-width: ; border-bottom-style: ; border-bottom-width: ; border-left-style: ; border-left-width: ; border-image-source: ; border-image-slice: ; border-image-width: ; border-image-outset: ; border-image-repeat: ; border-radius: 5px; text-align: center; outline: none;" title="自动刷新间隔（分钟）" onchange="if(autoOn){startTimer();}"><span style="font-size: 10px; color: var(--t3);">分</span>
-        <span class="auto-tag on" id="autoTag" onclick="toggleAutoRefresh()" style="color: var(--green); border-color: rgba(74, 222, 128, 0.3);">自动刷新功能 开</span>
+      <div class="ctrl-row">
+        <input type="number" id="autoMin" value="5" min="1" class="num-input" title="自动刷新间隔（分钟）" onchange="if(autoOn){startTimer();}">
+        <span class="unit">分</span>
+        <span class="auto-tag on" id="autoTag" onclick="toggleAutoRefresh()">自动刷新 开</span>
       </div>
-      <div style="display:flex;align-items:center;gap:4px;">
-        <input type="number" id="timeoutMin" value="45" min="1" style="width:40px;padding:4px 2px;font-size:11px;background:var(--card);color:var(--t1);border:1px solid var(--border);border-radius:5px;text-align:center;outline:none;" title="超时未推送阈值（分钟）">
-        <span style="font-size:10px;color:var(--t3);">分</span>
-        <span class="auto-tag" id="timeoutTag" onclick="toggleTimeout()" style="color: var(--green); border-color: rgba(74, 222, 128, 0.3); text-align: center; font-size: 11px;">超时推送检测 开</span>
+      <div class="ctrl-row">
+        <input type="number" id="timeoutMin" value="45" min="1" class="num-input" title="超时未推送阈值（分钟）">
+        <span class="unit">分</span>
+        <span class="auto-tag" id="timeoutTag" onclick="toggleTimeout()">超时检测 开</span>
       </div>
-      
-      <span class="auto-tag" id="cashTag" onclick="toggleCashAlert()" style="color: var(--green); border-color: rgba(74, 222, 128, 0.3);">收钱 开</span>
-      <button class="btn" id="btn" onclick="loadProfit(true)">刷新</button>
+      <div class="ctrl-row">
+        <span class="auto-tag" id="muteTag" onclick="toggleMute()" style="color:var(--t3);border-color:var(--border);">🔊 声音 开</span>
+        <button class="btn" id="btn" onclick="loadProfit(true)">刷新</button>
+      </div>
     </div>
   </div>
 </div>
@@ -560,35 +566,17 @@ async function getMessageDetail(shortCode){
   return {title:title, content:content, pushTime:pushTime};
 }
 
-// ===== 超时声音提醒 =====
+// ===== 声音提醒 =====
 var soundEnabled = false;
-var lastAlertTime = 0; // 上次声音告警时间戳
-var ALERT_COOLDOWN = 60000; // 声音告警冷却：60秒内不重复
-var alertInterval = null; // 重复告警定时器
+var lastAlertTime = 0;
+var ALERT_COOLDOWN = 60000;
+var alertInterval = null;
 
-function toggleSound(){
-  soundEnabled = !soundEnabled;
-  var tag = document.getElementById('soundTag');
-  if(soundEnabled){
-    tag.textContent = '收益面板声音开关 开';
-    tag.style.color = 'var(--green)';
-    tag.style.borderColor = 'rgba(74,222,128,0.3)';
-    // 测试播放一声
-    playAlertSound();
-  }else{
-    tag.textContent = '收益面板声音开关 关';
-    tag.style.color = 'var(--t3)';
-    tag.style.borderColor = 'var(--border)';
-    stopAlertLoop();
-  }
-  localStorage.setItem('pp_sound', soundEnabled?'1':'0');
-}
-
-// 用 Web Audio API 生成告警音（不需要音频文件）
+// 用 Web Audio API 生成告警音
 function playAlertSound(){
+  if(muted) return;
   try{
     var ctx = window._audioCtx || (window._audioCtx = new (window.AudioContext || window.webkitAudioContext)());
-    // 播放三声短促的"嘀嘀嘀"
     for(var i=0; i<3; i++){
       var osc = ctx.createOscillator();
       var gain = ctx.createGain();
@@ -608,7 +596,8 @@ function playAlertSound(){
 
 // 开始循环告警（每10秒响一次，直到超时消失或用户关闭声音）
 function startAlertLoop(){
-  if(alertInterval) return; // 已在运行
+  if(muted) return;
+  if(alertInterval) return;
   playAlertSound();
   lastAlertTime = Date.now();
   alertInterval = setInterval(function(){
@@ -627,8 +616,9 @@ function stopAlertLoop(){
 // ===== 摇晃语音提醒 =====
 var shakeAlertMap = {}; // 记录每个账号上次提醒的shake值，防止重复提醒
 function speakShakeAlert(account, shake){
+  if(muted) return;
   var key = account + '_' + shake;
-  if(shakeAlertMap[key]) return; // 已提醒过
+  if(shakeAlertMap[key]) return;
   shakeAlertMap[key] = true;
   try{
     if('speechSynthesis' in window){
@@ -649,30 +639,29 @@ function speakShakeAlert(account, shake){
   }catch(e){ console.log('Speech error:', e); }
 }
 
-// ===== 现金语音提醒 =====
-var cashAlertEnabled = false;
-var cashAlertMap = {}; // 记录每个账号上次提醒的cash值，防止重复提醒
-var CASH_THRESHOLD = 10000000; // 1000万
-
-function toggleCashAlert(){
-  cashAlertEnabled = !cashAlertEnabled;
-  var tag = document.getElementById('cashTag');
-  if(cashAlertEnabled){
-    tag.textContent = '收钱 开';
+// ===== 一键静音 =====
+var muted = false;
+function toggleMute(){
+  muted = !muted;
+  var tag = document.getElementById('muteTag');
+  if(muted){
+    tag.textContent = '🔇 静音';
+    tag.style.color = 'var(--red)';
+    tag.style.borderColor = 'rgba(248,113,113,0.3)';
+    soundEnabled = false;
+    stopAlertLoop();
+    if('speechSynthesis' in window) window.speechSynthesis.cancel();
+  }else{
+    tag.textContent = '🔊 声音 开';
     tag.style.color = 'var(--green)';
     tag.style.borderColor = 'rgba(74,222,128,0.3)';
-    // 测试播放一次
-    speakCashAlert('测试', 10000001, true);
-  }else{
-    tag.textContent = '收钱 关';
-    tag.style.color = 'var(--t3)';
-    tag.style.borderColor = 'var(--border)';
+    soundEnabled = timeoutEnabled;
   }
-  localStorage.setItem('pp_cash_alert', cashAlertEnabled?'1':'0');
+  localStorage.setItem('pp_muted', muted?'1':'0');
 }
 
 // ===== 超时检测开关 =====
-var timeoutEnabled = true; // 默认开启
+var timeoutEnabled = true;
 function toggleTimeout(){
   timeoutEnabled = !timeoutEnabled;
   var tag = document.getElementById('timeoutTag');
@@ -680,42 +669,15 @@ function toggleTimeout(){
     tag.textContent = '超时检测 开';
     tag.style.color = 'var(--green)';
     tag.style.borderColor = 'rgba(74,222,128,0.3)';
-    // 开启超时检测时自动开启声音
-    soundEnabled = true;
+    if(!muted) soundEnabled = true;
   }else{
     tag.textContent = '超时检测 关';
     tag.style.color = 'var(--t3)';
     tag.style.borderColor = 'var(--border)';
-    // 关闭超时检测时自动关闭声音
     soundEnabled = false;
     stopAlertLoop();
   }
   localStorage.setItem('pp_timeout_on', timeoutEnabled?'1':'0');
-}
-
-function speakCashAlert(account, cash, force){
-  if(!cashAlertEnabled && !force) return;
-  if(cash <= CASH_THRESHOLD) return;
-  var key = account + '_' + cash;
-  if(cashAlertMap[key]) return; // 已提醒过
-  cashAlertMap[key] = true;
-  try{
-    if('speechSynthesis' in window){
-      var text = '该收钱啦';
-      var count = 0;
-      function speakOnce(){
-        if(count >= 3) return;
-        var u = new SpeechSynthesisUtterance(text);
-        u.lang = 'zh-CN';
-        u.rate = 1.0;
-        u.pitch = 1.0;
-        u.volume = 1.0;
-        u.onend = function(){ count++; speakOnce(); };
-        window.speechSynthesis.speak(u);
-      }
-      speakOnce();
-    }
-  }catch(e){ console.log('Cash speech error:', e); }
 }
 
 // ===== 数字格式化：负数标红 =====
@@ -987,10 +949,6 @@ function renderProfit(d){
     // 摇晃>=11次触发语音提醒
     if(p.shake >= 11){
       speakShakeAlert(p.account, p.shake);
-    }
-    // 现金超过1000万触发语音提醒
-    if(p.cash > CASH_THRESHOLD){
-      speakCashAlert(p.account, p.cash);
     }
     h += '<div class="atime">'+esc(p.push_time)+'</div>';
     h += '</div>';
@@ -1445,7 +1403,7 @@ if(savedToken && savedSecret){
   renderHistoricalComparison();
 }
 
-// 恢复超时检测开关设置（同时控制声音）
+// 恢复超时检测开关设置
 var savedTimeoutOn = localStorage.getItem('pp_timeout_on');
 if(savedTimeoutOn === '0'){
   timeoutEnabled = false;
@@ -1455,17 +1413,22 @@ if(savedTimeoutOn === '0'){
   ttag.style.color = 'var(--t3)';
   ttag.style.borderColor = 'var(--border)';
 }else{
-  // 默认或明确开启时，声音也开启
   soundEnabled = true;
 }
 
-// 恢复收钱提醒设置
-if(localStorage.getItem('pp_cash_alert') === '1'){
-  cashAlertEnabled = true;
-  var ctag = document.getElementById('cashTag');
-  ctag.textContent = '收钱 开';
-  ctag.style.color = 'var(--green)';
-  ctag.style.borderColor = 'rgba(74,222,128,0.3)';
+// 恢复静音设置
+if(localStorage.getItem('pp_muted') === '1'){
+  muted = true;
+  soundEnabled = false;
+  var mtag = document.getElementById('muteTag');
+  mtag.textContent = '🔇 静音';
+  mtag.style.color = 'var(--red)';
+  mtag.style.borderColor = 'rgba(248,113,113,0.3)';
+}else{
+  var mtag2 = document.getElementById('muteTag');
+  mtag2.textContent = '🔊 声音 开';
+  mtag2.style.color = 'var(--green)';
+  mtag2.style.borderColor = 'rgba(74,222,128,0.3)';
 }
 </script>
 </body>
