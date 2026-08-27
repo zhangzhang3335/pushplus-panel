@@ -523,6 +523,32 @@ async function corsGet(url){
   throw new Error('所有请求均失败。直连+'+errors.length+'个代理全部失败。可能原因: CORS限制/网络问题');
 }
 
+// ===== 全局缓存与请求去重 =====
+var globalDetailCache = {};     // shortCode -> detail（跨函数共享）
+var globalDetailInflight = {};  // shortCode -> Promise（同一时刻只发一次）
+var globalAllMsgs = null;       // loadProfitData 拉取的全量消息列表
+var globalAllMsgsTime = 0;      // 全量消息的拉取时间戳
+
+// 去重详情获取：缓存命中直接返回，在途请求复用，否则发起新请求
+function fetchDetailDedup(shortCode, account, pushTime){
+  if(globalDetailCache[shortCode]) return Promise.resolve(globalDetailCache[shortCode]);
+  if(globalDetailInflight[shortCode]) return globalDetailInflight[shortCode];
+  var p = retryAsync(function(){
+    return getMessageDetail(shortCode);
+  }, 1, 500).then(function(detail){
+    globalDetailCache[shortCode] = detail;
+    delete globalDetailInflight[shortCode];
+    return detail;
+  }).catch(function(){
+    var fallback = {title: (account||'')+'种树完成', content: '', pushTime: pushTime||''};
+    globalDetailCache[shortCode] = fallback;
+    delete globalDetailInflight[shortCode];
+    return fallback;
+  });
+  globalDetailInflight[shortCode] = p;
+  return p;
+}
+
 // ===== PushPlus API 调用（通过 CORS 代理） =====
 async function getAccessKey(token, secretKey){
   if(cachedAK && cachedToken === token && cachedSecret === secretKey) return cachedAK;
@@ -765,6 +791,10 @@ async function loadProfitData(token, secret){
     if(pageErrors.length >= 5) break;
   }
 
+  // 缓存全量消息列表供 fetchCustomMessages 复用
+  globalAllMsgs = allMsgs;
+  globalAllMsgsTime = Date.now();
+
   // 筛选种树完成消息，并按日期分组
   var planting = [];
   for(var i=0; i<allMsgs.length; i++){
@@ -793,8 +823,7 @@ async function loadProfitData(token, secret){
 
   var dateKeys = Object.keys(byDate).sort();
 
-  // === 优化: 预收集所有日期的唯一详情请求，一次性并行获取 ===
-  var detailCache = {};
+  // === 优化: 预收集所有日期的唯一详情请求，使用全局缓存去重 ===
   var itemMap = {};
   var allUniqueItems = [];
   for(var di=0; di<dateKeys.length; di++){
@@ -816,21 +845,12 @@ async function loadProfitData(token, secret){
     }
   }
 
-  // 并行获取所有详情（每批10个并发）
+  // 并行获取所有详情（每批10个并发，使用全局去重缓存）
   var batchSize = 10;
   for(var i=0; i<allUniqueItems.length; i+=batchSize){
     var batch = allUniqueItems.slice(i, i+batchSize);
     var promises = batch.map(function(item){
-      return retryAsync(function(){
-        return getMessageDetail(item.shortCode);
-      }, 1, 500).then(function(detail){
-        detailCache[item.shortCode] = detail;
-        return detail;
-      }).catch(function(){
-        var fallback = {title: item.account+'种树完成', content: '', pushTime: item.pushTime};
-        detailCache[item.shortCode] = fallback;
-        return fallback;
-      });
+      return fetchDetailDedup(item.shortCode, item.account, item.pushTime);
     });
     await Promise.all(promises);
   }
@@ -851,7 +871,7 @@ async function loadProfitData(token, secret){
     var dayAccounts = [];
     var dayTotalProfit = 0, dayTotalPlanted = 0;
     for(var i=0; i<dayItems.length; i++){
-      var detail = detailCache[dayItems[i].shortCode];
+      var detail = globalDetailCache[dayItems[i].shortCode];
       var data = parsePlanting(detail.title || dayItems[i].account+'种树完成', detail.content);
       data.push_time = detail.pushTime || dayItems[i].pushTime;
       dayTotalProfit += data.total_profit;
@@ -1013,12 +1033,18 @@ function fetchMessages(){
 }
 
 async function fetchCustomMessages(token, secret){
-  var ak = await getAccessKey(token, secret);
-  var list = await getMessageList(ak, 1, 20);
+  // 复用全局缓存的消息列表（5分钟内有效），避免重复拉取
+  var list;
+  if(globalAllMsgs && (Date.now() - globalAllMsgsTime < 300000)){
+    list = globalAllMsgs.slice(0, 20);
+  }else{
+    var ak = await getAccessKey(token, secret);
+    list = await getMessageList(ak, 1, 20);
+  }
 
-  // 限制并发获取详情，每批5个
+  // 并行获取详情（每批10个，使用全局去重缓存）
   var results = [];
-  var batchSize = 5;
+  var batchSize = 10;
   for(var i=0; i<list.length; i+=batchSize){
     var batch = list.slice(i, i+batchSize);
     var promises = batch.map(function(m){
@@ -1028,17 +1054,13 @@ async function fetchCustomMessages(token, secret){
       if(!sc || sc=='test123' || sc=='88888888'){
         return Promise.resolve({title:title, content:'', push_time:pushTime, short_code:sc});
       }
-      return retryAsync(function(){
-        return getMessageDetail(sc);
-      }, 1, 500).then(function(detail){
+      return fetchDetailDedup(sc, title.replace('种树完成','').trim(), pushTime).then(function(detail){
         return {
           title: detail.title || title,
           content: detail.content ? detail.content.substring(0,500) : '',
           push_time: detail.pushTime || pushTime,
           short_code: sc
         };
-      }).catch(function(){
-        return {title:title, content:'', push_time:pushTime, short_code:sc};
       });
     });
     var batchResults = await Promise.all(promises);
