@@ -1196,10 +1196,28 @@ function renderHistoricalComparison(externalSnapshots){
   var latest = snaps[snaps.length-1];
   var prev = snaps.length >= 2 ? snaps[snaps.length-2] : null;
 
-  // === 1. 对比摘要 ===
+  // === 1. 对比摘要（只统计两天共同存在的账号） ===
   if(prev){
-    var diffProfit = latest.total_profit - prev.total_profit;
-    var diffPlanted = latest.total_planted - prev.total_planted;
+    var prevAccMap = {};
+    if(prev.accounts){
+      prev.accounts.forEach(function(acc){
+        prevAccMap[acc.account] = {profit: acc.total_profit, planted: acc.planted};
+      });
+    }
+    var commonProfitNow = 0, commonProfitPrev = 0;
+    var commonPlantedNow = 0, commonPlantedPrev = 0;
+    if(latest.accounts){
+      latest.accounts.forEach(function(acc){
+        if(prevAccMap[acc.account]){
+          commonProfitNow += acc.total_profit;
+          commonProfitPrev += prevAccMap[acc.account].profit;
+          commonPlantedNow += acc.planted;
+          commonPlantedPrev += prevAccMap[acc.account].planted;
+        }
+      });
+    }
+    var diffProfit = commonProfitNow - commonProfitPrev;
+    var diffPlanted = commonPlantedNow - commonPlantedPrev;
     var profitClass = diffProfit > 0 ? 'up' : (diffProfit < 0 ? 'down' : 'flat');
     var profitSign = diffProfit > 0 ? '+' : '';
     var plantedClass = diffPlanted > 0 ? 'up' : (diffPlanted < 0 ? 'down' : 'flat');
@@ -1222,8 +1240,23 @@ function renderHistoricalComparison(externalSnapshots){
     for(var i=snaps.length-1; i>=0; i--){
       var s = snaps[i];
       var delta = '';
+      // 日增减：只统计两天共同存在的账号
       if(i > 0){
-        var d = s.total_profit - snaps[i-1].total_profit;
+        var prevSnapD = snaps[i-1];
+        var prevAccMapD = {};
+        if(prevSnapD.accounts){
+          prevSnapD.accounts.forEach(function(acc){ prevAccMapD[acc.account] = acc.total_profit; });
+        }
+        var commonNow = 0, commonPrev = 0;
+        if(s.accounts){
+          s.accounts.forEach(function(acc){
+            if(prevAccMapD[acc.account] !== undefined){
+              commonNow += acc.total_profit;
+              commonPrev += prevAccMapD[acc.account];
+            }
+          });
+        }
+        var d = commonNow - commonPrev;
         var cls = d > 0 ? 'cmp-delta-up' : (d < 0 ? 'cmp-delta-down' : 'cmp-delta-flat');
         delta = '<span class="'+cls+'">'+redNeg(d)+'</span>';
       }else{
