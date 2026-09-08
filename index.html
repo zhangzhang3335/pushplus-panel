@@ -532,6 +532,7 @@ var globalAllSnapshots = null;  // 计算好的快照（无新消息时直接复
 var globalSeenShortCodes = {};  // 已见过的 shortCode 集合（用于增量去重）
 var globalNewestMsgTime = '';   // 已见过的最新消息时间
 var globalCachedToken = '';     // 缓存对应的 token，变化时清空所有缓存
+var globalByDate = null;       // 按日期分组的消息缓存 {date: [{account, shortCode, pushTime, dateStr}]}
 
 // 去重详情获取：缓存命中直接返回，在途请求复用，否则发起新请求
 function fetchDetailDedup(shortCode, account, pushTime){
@@ -777,6 +778,7 @@ async function loadProfitData(token, secret){
     globalDetailCache = {};
     globalDetailInflight = {};
     globalNewestMsgTime = '';
+    globalByDate = null;
     globalCachedToken = token;
   }
 
@@ -788,6 +790,7 @@ async function loadProfitData(token, secret){
   // === 增量拉取：有缓存时只拉取新消息 ===
   var allMsgs;
   var hasNewData = false;
+  var newMsgs = [];
 
   if(globalAllMsgs && globalAllMsgs.length > 0){
     // 先拉第1页检查是否有新消息
@@ -796,8 +799,7 @@ async function loadProfitData(token, secret){
       return [];
     });
 
-    // 找出第1页中的新消息
-    var newMsgs = [];
+    // 找出第1页中的新消息（newMsgs 已在函数作用域声明）
     for(var i=0; i<page1.length; i++){
       if(!globalSeenShortCodes[page1[i].shortCode]){
         newMsgs.push(page1[i]);
@@ -809,8 +811,14 @@ async function loadProfitData(token, secret){
       allMsgs = globalAllMsgs;
       hasNewData = false;
     }else{
-      // 有新消息，并行批量拉取后续页，直到某批全部是重复消息
-      if(page1.length >= 50){
+      // 有新消息，检查是否需要拉取更多页
+      // 如果第1页最旧的消息已在缓存中，说明所有新消息都在第1页
+      var needMorePages = page1.length >= 50;
+      if(needMorePages && page1.length > 0){
+        var oldestOnPage1 = page1[page1.length - 1];
+        if(globalSeenShortCodes[oldestOnPage1.shortCode]) needMorePages = false;
+      }
+      if(needMorePages){
         var incBatch = 5;
         for(var ps=2; ps<=100; ps+=incBatch){
           var pe = Math.min(ps + incBatch - 1, 100);
@@ -850,9 +858,11 @@ async function loadProfitData(token, secret){
       hasNewData = true;
     }
   }else{
-    // 首次：全量并行批量拉取
+    // 首次：全量并行批量拉取（提前终止：只需最近7天数据用于5天展示）
     var allMsgsArr = [];
     var pageBatch = 5;
+    var cutoffDate = new Date(now.getTime() - 7*24*60*60*1000);
+    var cutoffStr = fmt(cutoffDate).split(' ')[0];
     for(var pageStart=1; pageStart<=100; pageStart+=pageBatch){
       var pageEnd = Math.min(pageStart + pageBatch - 1, 100);
       var pages = [];
@@ -864,18 +874,26 @@ async function loadProfitData(token, secret){
         });
       }));
       var hasFullPage = false;
+      var oldestInBatch = '';
       for(var r=0; r<results.length; r++){
         if(results[r].length > 0){
           allMsgsArr = allMsgsArr.concat(results[r]);
           if(results[r].length >= 50) hasFullPage = true;
+          for(var mi=0; mi<results[r].length; mi++){
+            var mt = results[r][mi].updateTime || '';
+            if(mt && (oldestInBatch === '' || mt < oldestInBatch)) oldestInBatch = mt;
+          }
         }
       }
+      // 所有消息都超过7天，不需要更多数据
+      if(oldestInBatch && oldestInBatch.split(' ')[0] < cutoffStr) break;
       if(!hasFullPage) break;
       if(pageErrors.length >= 5) break;
     }
     allMsgs = allMsgsArr;
     globalAllMsgs = allMsgs;
     globalAllMsgsTime = Date.now();
+    newMsgs = allMsgsArr.slice();
     for(var i=0; i<allMsgs.length; i++){
       globalSeenShortCodes[allMsgs[i].shortCode] = true;
       var pt = allMsgs[i].updateTime || '';
@@ -884,10 +902,13 @@ async function loadProfitData(token, secret){
     hasNewData = true;
   }
 
-  // 筛选种树完成消息，并按日期分组
-  var planting = [];
-  for(var i=0; i<allMsgs.length; i++){
-    var m = allMsgs[i];
+  // === 增量分组：只处理新消息，合并到缓存的 byDate ===
+  var byDate = globalByDate || {};
+
+  // 只筛选 newMsgs 中的种树完成消息（已缓存的消息不需要重新筛选）
+  var affectedDates = {};
+  for(var i=0; i<newMsgs.length; i++){
+    var m = newMsgs[i];
     var title = m.title || '';
     var sc = m.shortCode || '';
     if(!sc || sc=='test123' || sc=='88888888') continue;
@@ -895,92 +916,137 @@ async function loadProfitData(token, secret){
     if(title.indexOf('[AI分析]')==0 || title.indexOf('[告警]')==0 || title.indexOf('[汇总报告]')==0 || title.indexOf('[每日统计]')==0) continue;
     var pt = m.updateTime || '';
     var dateStr = pt ? pt.split(' ')[0] : '';
-    planting.push({account:title.replace('种树完成','').trim(), shortCode:sc, pushTime:pt, dateStr:dateStr});
+    if(!dateStr) continue;
+    if(!byDate[dateStr]) byDate[dateStr] = [];
+    byDate[dateStr].push({account:title.replace('种树完成','').trim(), shortCode:sc, pushTime:pt, dateStr:dateStr});
+    affectedDates[dateStr] = true;
   }
+  globalByDate = byDate;
 
-  // 按日期分组
-  var byDate = {};
-  for(var i=0; i<planting.length; i++){
-    var ds = planting[i].dateStr;
-    if(!ds) continue;
-    if(!byDate[ds]) byDate[ds] = [];
-    byDate[ds].push(planting[i]);
+  // 清理超过7天的旧日期，防止 globalByDate 无限增长
+  var pruneStr = fmt(new Date(now.getTime() - 7*24*60*60*1000)).split(' ')[0];
+  var allDateKeys = Object.keys(byDate);
+  for(var pi=0; pi<allDateKeys.length; pi++){
+    if(allDateKeys[pi] < pruneStr) delete byDate[allDateKeys[pi]];
   }
-
   var dateKeys = Object.keys(byDate).sort();
 
-  // === 快速路径：无新数据时直接复用缓存快照，跳过所有详情请求 ===
+  // === 快速路径：无新数据时直接复用缓存快照（同时清理过期快照）===
   var allSnapshots;
-  if(!hasNewData && globalAllSnapshots){
-    allSnapshots = globalAllSnapshots;
+  if(newMsgs.length === 0 && globalAllSnapshots){
+    allSnapshots = globalAllSnapshots.filter(function(s){ return s.date >= pruneStr; });
+    globalAllSnapshots = allSnapshots;
   }else{
-    // === 慢速路径：获取新详情、构建快照 ===
-    var itemMap = {};
-    var allUniqueItems = [];
-    for(var di=0; di<dateKeys.length; di++){
-      var ds = dateKeys[di];
-      var dayMsgs = byDate[ds];
-      var dayLatest = {};
-      for(var i=0; i<dayMsgs.length; i++){
-        var a = dayMsgs[i].account;
-        if(!dayLatest[a] || dayMsgs[i].pushTime > dayLatest[a].pushTime){
-          dayLatest[a] = dayMsgs[i];
-        }
-      }
-      var dayItems = Object.values(dayLatest);
-      for(var i=0; i<dayItems.length; i++){
-        if(!itemMap[dayItems[i].shortCode]){
-          itemMap[dayItems[i].shortCode] = dayItems[i];
-          allUniqueItems.push(dayItems[i]);
-        }
-      }
+    // === 增量路径：直接从 newMsgs 提取未缓存的 shortCode ===
+    var itemsToFetch = [];
+    var seenFetch = {};
+    for(var i=0; i<newMsgs.length; i++){
+      var m = newMsgs[i];
+      var sc = m.shortCode || '';
+      var title = m.title || '';
+      if(!sc || sc=='test123' || sc=='88888888') continue;
+      if(title.indexOf('种树完成')<0) continue;
+      if(title.indexOf('[AI分析]')==0 || title.indexOf('[告警]')==0 || title.indexOf('[汇总报告]')==0 || title.indexOf('[每日统计]')==0) continue;
+      if(globalDetailCache[sc] || seenFetch[sc]) continue;
+      seenFetch[sc] = true;
+      var pt = m.updateTime || '';
+      var dateStr = pt ? pt.split(' ')[0] : '';
+      if(!dateStr) continue;
+      itemsToFetch.push({account:title.replace('种树完成','').trim(), shortCode:sc, pushTime:pt, dateStr:dateStr});
     }
 
-    // 并行获取所有详情（每批10个并发，使用全局去重缓存，已缓存的自动跳过）
-    var batchSize = 10;
-    for(var i=0; i<allUniqueItems.length; i+=batchSize){
-      var batch = allUniqueItems.slice(i, i+batchSize);
+    // 并行获取新详情（每批20个并发，预过滤已缓存的）
+    var batchSize = 20;
+    for(var i=0; i<itemsToFetch.length; i+=batchSize){
+      var batch = itemsToFetch.slice(i, i+batchSize);
       var promises = batch.map(function(item){
         return fetchDetailDedup(item.shortCode, item.account, item.pushTime);
       });
       await Promise.all(promises);
     }
 
-    // === 使用缓存的详情处理所有日期（纯CPU计算，无网络请求） ===
-    allSnapshots = [];
-    for(var di=0; di<dateKeys.length; di++){
-      var ds = dateKeys[di];
-      var dayMsgs = byDate[ds];
-      var dayLatest = {};
-      for(var i=0; i<dayMsgs.length; i++){
-        var a = dayMsgs[i].account;
-        if(!dayLatest[a] || dayMsgs[i].pushTime > dayLatest[a].pushTime){
-          dayLatest[a] = dayMsgs[i];
+    // === 构建快照：受影响日期重建，其他复用缓存（单次遍历） ===
+    if(globalAllSnapshots && globalAllSnapshots.length > 0){
+      var snapByDate = {};
+      for(var i=0; i<globalAllSnapshots.length; i++){
+        snapByDate[globalAllSnapshots[i].date] = globalAllSnapshots[i];
+      }
+      allSnapshots = [];
+      for(var di=0; di<dateKeys.length; di++){
+        var ds = dateKeys[di];
+        if(affectedDates[ds]){
+          var dayMsgs2 = byDate[ds];
+          var dayLatest2 = {};
+          for(var i=0; i<dayMsgs2.length; i++){
+            var a = dayMsgs2[i].account;
+            if(!dayLatest2[a] || dayMsgs2[i].pushTime > dayLatest2[a].pushTime){
+              dayLatest2[a] = dayMsgs2[i];
+            }
+          }
+          var dayItems2 = Object.values(dayLatest2);
+          var dayAccounts = [];
+          var dayTotalProfit = 0, dayTotalPlanted = 0;
+          for(var i=0; i<dayItems2.length; i++){
+            var detail = globalDetailCache[dayItems2[i].shortCode];
+            if(!detail) continue;
+            var data = parsePlanting(detail.title || dayItems2[i].account+'种树完成', detail.content);
+            data.push_time = detail.pushTime || dayItems2[i].pushTime;
+            dayTotalProfit += data.total_profit;
+            dayTotalPlanted += data.planted;
+            dayAccounts.push(data);
+          }
+          if(dayAccounts.length > 0){
+            allSnapshots.push({
+              date: ds,
+              timestamp: new Date(ds.replace(/-/g,'/')+' 00:00:00').getTime(),
+              total_profit: dayTotalProfit,
+              total_planted: dayTotalPlanted,
+              account_count: dayAccounts.length,
+              accounts: dayAccounts
+            });
+          }
+        }else{
+          if(snapByDate[ds]){
+            allSnapshots.push(snapByDate[ds]);
+          }
         }
       }
-      var dayItems = Object.values(dayLatest);
-      var dayAccounts = [];
-      var dayTotalProfit = 0, dayTotalPlanted = 0;
-      for(var i=0; i<dayItems.length; i++){
-        var detail = globalDetailCache[dayItems[i].shortCode];
-        var data = parsePlanting(detail.title || dayItems[i].account+'种树完成', detail.content);
-        data.push_time = detail.pushTime || dayItems[i].pushTime;
-        dayTotalProfit += data.total_profit;
-        dayTotalPlanted += data.planted;
-        dayAccounts.push(data);
-      }
-      if(dayAccounts.length > 0){
-        allSnapshots.push({
-          date: ds,
-          timestamp: new Date(ds.replace(/-/g,'/')+' 00:00:00').getTime(),
-          total_profit: dayTotalProfit,
-          total_planted: dayTotalPlanted,
-          account_count: dayAccounts.length,
-          accounts: dayAccounts
-        });
+    }else{
+      allSnapshots = [];
+      for(var di=0; di<dateKeys.length; di++){
+        var ds = dateKeys[di];
+        var dayMsgs = byDate[ds];
+        var dayLatest = {};
+        for(var i=0; i<dayMsgs.length; i++){
+          var a = dayMsgs[i].account;
+          if(!dayLatest[a] || dayMsgs[i].pushTime > dayLatest[a].pushTime){
+            dayLatest[a] = dayMsgs[i];
+          }
+        }
+        var dayItems = Object.values(dayLatest);
+        var dayAccounts = [];
+        var dayTotalProfit = 0, dayTotalPlanted = 0;
+        for(var i=0; i<dayItems.length; i++){
+          var detail = globalDetailCache[dayItems[i].shortCode];
+          if(!detail) continue;
+          var data = parsePlanting(detail.title || dayItems[i].account+'种树完成', detail.content);
+          data.push_time = detail.pushTime || dayItems[i].pushTime;
+          dayTotalProfit += data.total_profit;
+          dayTotalPlanted += data.planted;
+          dayAccounts.push(data);
+        }
+        if(dayAccounts.length > 0){
+          allSnapshots.push({
+            date: ds,
+            timestamp: new Date(ds.replace(/-/g,'/')+' 00:00:00').getTime(),
+            total_profit: dayTotalProfit,
+            total_planted: dayTotalPlanted,
+            account_count: dayAccounts.length,
+            accounts: dayAccounts
+          });
+        }
       }
     }
-    // 缓存计算好的快照
     globalAllSnapshots = allSnapshots;
   }
 
