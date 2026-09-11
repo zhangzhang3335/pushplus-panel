@@ -329,20 +329,20 @@ function fmt(d){return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+
 
 // ===== CORS 代理（解决浏览器跨域限制） =====
 var CORS_PROXIES = [
-  function(url){ return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url); },
-  function(url){ return 'https://corsproxy.io/?url=' + encodeURIComponent(url); },
-  function(url){ return 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url); },
   function(url){ return 'https://api.cors.lol/?url=' + encodeURIComponent(url); },
+  function(url){ return 'https://corsproxy.io/?url=' + encodeURIComponent(url); },
   function(url){ return 'https://thingproxy.freeboard.io/fetch/' + url; },
+  function(url){ return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url); },
+  function(url){ return 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url); },
   function(url){ return 'https://cors-proxy-rouge.vercel.app/?url=' + encodeURIComponent(url); },
   function(url){ return 'https://cors-proxy-kokodev.netlify.app/?url=' + encodeURIComponent(url); }
 ];
 
 // POST-capable proxies (subset that supports POST method)
-var POST_PROXIES = CORS_PROXIES.filter(function(_, i){ return [0,1,2,3,4,5,6].indexOf(i) >= 0; });
-var proxyIdx = 0;
-var proxyFailCount = {};
-var FETCH_TIMEOUT = 15000;
+var POST_PROXIES = CORS_PROXIES.filter(function(_, i){ return [0,1,2,5,6].indexOf(i) >= 0; });
+var proxyIdx = 0; // 当前使用的代理索引
+var proxyFailCount = {}; // 记录每个代理的连续失败次数
+var FETCH_TIMEOUT = 12000; // fetch 超时 12 秒
 
 // ===== 通用重试包装器 =====
 async function retryAsync(fn, retries, delayMs){
@@ -430,9 +430,9 @@ async function fetchWithTimeout(url, options){
   }
 }
 
-// 先尝试直连POST，失败后用GET+查询参数通过CORS代理（大多数代理不转发POST body）
+// 先尝试直连，失败再用 CORS 代理发送 POST 请求
 async function corsPost(url, body, customHeaders){
-  // 1. Try direct POST first
+  // 1. Try direct fetch first
   try{
     var opts = {method:'POST', headers:{'Content-Type':'application/json'}};
     if(customHeaders) Object.assign(opts.headers, customHeaders);
@@ -451,34 +451,18 @@ async function corsPost(url, body, customHeaders){
   }catch(e){
     console.log('[DIRECT] POST 失败: ' + e.message + '，尝试代理...');
   }
-  // 2. Build URL with query params (many CORS proxies don't forward POST body)
-  var getUrl = url;
-  var params = [];
-  if(body){
-    for(var k in body){
-      if(Object.prototype.hasOwnProperty.call(body, k)){
-        params.push(encodeURIComponent(k) + '=' + encodeURIComponent(body[k]));
-      }
-    }
-  }
-  if(customHeaders){
-    for(var h in customHeaders){
-      if(Object.prototype.hasOwnProperty.call(customHeaders, h)){
-        params.push(encodeURIComponent(h) + '=' + encodeURIComponent(customHeaders[h]));
-      }
-    }
-  }
-  if(params.length > 0){
-    getUrl += (url.indexOf('?') >= 0 ? '&' : '?') + params.join('&');
-  }
-  // 3. Fall back to CORS proxies via GET with query params
+  // 2. Fall back to CORS proxies
   var errors = [];
-  for(var attempt=0; attempt<CORS_PROXIES.length; attempt++){
-    var idx = (proxyIdx + attempt) % CORS_PROXIES.length;
-    if((proxyFailCount[idx]||0) >= 5) continue;
-    var proxyUrl = CORS_PROXIES[idx](getUrl);
+  var proxies = (typeof POST_PROXIES !== 'undefined') ? POST_PROXIES : CORS_PROXIES;
+  for(var attempt=0; attempt<proxies.length; attempt++){
+    var idx = (proxyIdx + attempt) % proxies.length;
+    if((proxyFailCount[idx]||0) >= 3) continue;
+    var proxyUrl = proxies[idx](url);
     try{
-      var resp = await fetchWithTimeout(proxyUrl, {method:'GET'});
+      var opts = {method:'POST', headers:{'Content-Type':'application/json'}};
+      if(customHeaders) Object.assign(opts.headers, customHeaders);
+      opts.body = JSON.stringify(body);
+      var resp = await fetchWithTimeout(proxyUrl, opts);
       if(!resp.ok) throw new Error('HTTP ' + resp.status);
       var text = await getResponseText(resp);
       if(!text || text.trim().length === 0) throw new Error('空响应');
@@ -486,41 +470,39 @@ async function corsPost(url, body, customHeaders){
       try { d = JSON.parse(text); } catch(e) { throw new Error('JSON解析失败'); }
       proxyIdx = idx;
       proxyFailCount[idx] = 0;
-      console.log('[CORS] GET-with-params 成功（代理 #'+(idx+1)+'）');
+      console.log('[CORS] POST 成功（代理 #'+(idx+1)+'）');
       return d;
     }catch(e){
       var errMsg = e.name === 'AbortError' ? '请求超时' : e.message;
       proxyFailCount[idx] = (proxyFailCount[idx]||0) + 1;
       errors.push('代理#'+(idx+1)+': '+errMsg);
-      console.log('[CORS] 代理 #'+(idx+1)+' 失败: '+errMsg);
+      console.log('[CORS] POST 代理 #'+(idx+1)+' 失败: '+errMsg);
     }
   }
-  throw new Error('网络请求失败，所有 '+CORS_PROXIES.length+' 个代理均不可用。建议：1)检查网络连接 2)稍后重试 3)尝试更换网络环境');
+  throw new Error('所有请求均失败。直连+'+errors.length+'个代理全部失败。可能原因: CORS限制/网络问题/Token无效');
 }
 
 // 先尝试直连，失败再用 CORS 代理发送 GET 请求
-async function corsGet(url, skipDirect){
-  // 1. Try direct fetch first (unless skipDirect for known CORS-blocked URLs)
-  if(!skipDirect){
-    try{
-      var resp = await fetchWithTimeout(url, {method:'GET'});
-      if(resp.ok){
-        var text = await getResponseText(resp);
-        if(text && text.trim().length > 0){
-          console.log('[DIRECT] GET 成功');
-          return text;
-        }
+async function corsGet(url){
+  // 1. Try direct fetch first
+  try{
+    var resp = await fetchWithTimeout(url, {method:'GET'});
+    if(resp.ok){
+      var text = await getResponseText(resp);
+      if(text && text.trim().length > 0){
+        console.log('[DIRECT] GET 成功');
+        return text;
       }
-      throw new Error('HTTP ' + resp.status);
-    }catch(e){
-      console.log('[DIRECT] GET 失败: ' + e.message + '，尝试代理...');
     }
+    throw new Error('HTTP ' + resp.status);
+  }catch(e){
+    console.log('[DIRECT] GET 失败: ' + e.message + '，尝试代理...');
   }
   // 2. Fall back to CORS proxies
   var errors = [];
   for(var attempt=0; attempt<CORS_PROXIES.length; attempt++){
     var idx = (proxyIdx + attempt) % CORS_PROXIES.length;
-    if((proxyFailCount[idx]||0) >= 5) continue;
+    if((proxyFailCount[idx]||0) >= 3) continue;
     var proxyUrl = CORS_PROXIES[idx](url);
     try{
       var resp = await fetchWithTimeout(proxyUrl, {method:'GET'});
@@ -600,7 +582,7 @@ async function getMessageList(ak, page, pageSize){
 }
 
 async function getMessageDetail(shortCode){
-  var html = await corsGet('https://www.pushplus.plus/shortMessage/'+shortCode, true);
+  var html = await corsGet('https://www.pushplus.plus/shortMessage/'+shortCode);
   var title='(无标题)', content='', pushTime='';
   var tm = html.match(/<h4[^>]*>([\s\S]*?)<\/h4>/);
   if(tm) title = tm[1].trim();
@@ -799,8 +781,6 @@ async function loadProfitData(token, secret){
     globalByDate = null;
     globalCachedToken = token;
   }
-  // 每次刷新重置代理失败计数，给所有代理重新尝试的机会
-  proxyFailCount = {};
 
   var ak = await getAccessKey(token, secret);
   var pageErrors = [];
@@ -880,7 +860,7 @@ async function loadProfitData(token, secret){
   }else{
     // 首次：全量并行批量拉取（提前终止：只需最近7天数据用于5天展示）
     var allMsgsArr = [];
-    var pageBatch = 10;
+    var pageBatch = 5;
     var cutoffDate = new Date(now.getTime() - 7*24*60*60*1000);
     var cutoffStr = fmt(cutoffDate).split(' ')[0];
     for(var pageStart=1; pageStart<=100; pageStart+=pageBatch){
@@ -922,11 +902,11 @@ async function loadProfitData(token, secret){
     hasNewData = true;
   }
 
-  // === 增量分组 + 收集待获取详情：单次遍历 newMsgs ===
+  // === 增量分组：只处理新消息，合并到缓存的 byDate ===
   var byDate = globalByDate || {};
+
+  // 只筛选 newMsgs 中的种树完成消息（已缓存的消息不需要重新筛选）
   var affectedDates = {};
-  var itemsToFetch = [];
-  var seenFetch = {};
   for(var i=0; i<newMsgs.length; i++){
     var m = newMsgs[i];
     var title = m.title || '';
@@ -937,19 +917,13 @@ async function loadProfitData(token, secret){
     var pt = m.updateTime || '';
     var dateStr = pt ? pt.split(' ')[0] : '';
     if(!dateStr) continue;
-    var account = title.replace('种树完成','').trim();
-    var item = {account:account, shortCode:sc, pushTime:pt, dateStr:dateStr};
     if(!byDate[dateStr]) byDate[dateStr] = [];
-    byDate[dateStr].push(item);
+    byDate[dateStr].push({account:title.replace('种树完成','').trim(), shortCode:sc, pushTime:pt, dateStr:dateStr});
     affectedDates[dateStr] = true;
-    if(!globalDetailCache[sc] && !seenFetch[sc]){
-      seenFetch[sc] = true;
-      itemsToFetch.push(item);
-    }
   }
   globalByDate = byDate;
 
-  // 清理超过7天的旧日期
+  // 清理超过7天的旧日期，防止 globalByDate 无限增长
   var pruneStr = fmt(new Date(now.getTime() - 7*24*60*60*1000)).split(' ')[0];
   var allDateKeys = Object.keys(byDate);
   for(var pi=0; pi<allDateKeys.length; pi++){
@@ -957,15 +931,32 @@ async function loadProfitData(token, secret){
   }
   var dateKeys = Object.keys(byDate).sort();
 
-  // === 快速路径：无新数据时直接复用缓存快照 ===
+  // === 快速路径：无新数据时直接复用缓存快照（同时清理过期快照）===
   var allSnapshots;
   if(newMsgs.length === 0 && globalAllSnapshots){
     allSnapshots = globalAllSnapshots.filter(function(s){ return s.date >= pruneStr; });
     globalAllSnapshots = allSnapshots;
   }else{
+    // === 增量路径：直接从 newMsgs 提取未缓存的 shortCode ===
+    var itemsToFetch = [];
+    var seenFetch = {};
+    for(var i=0; i<newMsgs.length; i++){
+      var m = newMsgs[i];
+      var sc = m.shortCode || '';
+      var title = m.title || '';
+      if(!sc || sc=='test123' || sc=='88888888') continue;
+      if(title.indexOf('种树完成')<0) continue;
+      if(title.indexOf('[AI分析]')==0 || title.indexOf('[告警]')==0 || title.indexOf('[汇总报告]')==0 || title.indexOf('[每日统计]')==0) continue;
+      if(globalDetailCache[sc] || seenFetch[sc]) continue;
+      seenFetch[sc] = true;
+      var pt = m.updateTime || '';
+      var dateStr = pt ? pt.split(' ')[0] : '';
+      if(!dateStr) continue;
+      itemsToFetch.push({account:title.replace('种树完成','').trim(), shortCode:sc, pushTime:pt, dateStr:dateStr});
+    }
 
-    // 并行获取新详情（每批30个并发，预过滤已缓存的）
-    var batchSize = 30;
+    // 并行获取新详情（每批20个并发，预过滤已缓存的）
+    var batchSize = 20;
     for(var i=0; i<itemsToFetch.length; i+=batchSize){
       var batch = itemsToFetch.slice(i, i+batchSize);
       var promises = batch.map(function(item){
@@ -974,50 +965,86 @@ async function loadProfitData(token, secret){
       await Promise.all(promises);
     }
 
-    // === 构建快照：受影响日期重建，其他复用缓存 ===
-    var snapByDate = {};
-    if(globalAllSnapshots){
+    // === 构建快照：受影响日期重建，其他复用缓存（单次遍历） ===
+    if(globalAllSnapshots && globalAllSnapshots.length > 0){
+      var snapByDate = {};
       for(var i=0; i<globalAllSnapshots.length; i++){
         snapByDate[globalAllSnapshots[i].date] = globalAllSnapshots[i];
       }
-    }
-    allSnapshots = [];
-    for(var di=0; di<dateKeys.length; di++){
-      var ds = dateKeys[di];
-      if(!affectedDates[ds] && snapByDate[ds]){
-        allSnapshots.push(snapByDate[ds]);
-        continue;
-      }
-      var dayMsgs = byDate[ds];
-      if(!dayMsgs || dayMsgs.length === 0) continue;
-      var dayLatest = {};
-      for(var i=0; i<dayMsgs.length; i++){
-        var a = dayMsgs[i].account;
-        if(!dayLatest[a] || dayMsgs[i].pushTime > dayLatest[a].pushTime){
-          dayLatest[a] = dayMsgs[i];
+      allSnapshots = [];
+      for(var di=0; di<dateKeys.length; di++){
+        var ds = dateKeys[di];
+        if(affectedDates[ds]){
+          var dayMsgs2 = byDate[ds];
+          var dayLatest2 = {};
+          for(var i=0; i<dayMsgs2.length; i++){
+            var a = dayMsgs2[i].account;
+            if(!dayLatest2[a] || dayMsgs2[i].pushTime > dayLatest2[a].pushTime){
+              dayLatest2[a] = dayMsgs2[i];
+            }
+          }
+          var dayItems2 = Object.values(dayLatest2);
+          var dayAccounts = [];
+          var dayTotalProfit = 0, dayTotalPlanted = 0;
+          for(var i=0; i<dayItems2.length; i++){
+            var detail = globalDetailCache[dayItems2[i].shortCode];
+            if(!detail) continue;
+            var data = parsePlanting(detail.title || dayItems2[i].account+'种树完成', detail.content);
+            data.push_time = detail.pushTime || dayItems2[i].pushTime;
+            dayTotalProfit += data.total_profit;
+            dayTotalPlanted += data.planted;
+            dayAccounts.push(data);
+          }
+          if(dayAccounts.length > 0){
+            allSnapshots.push({
+              date: ds,
+              timestamp: new Date(ds.replace(/-/g,'/')+' 00:00:00').getTime(),
+              total_profit: dayTotalProfit,
+              total_planted: dayTotalPlanted,
+              account_count: dayAccounts.length,
+              accounts: dayAccounts
+            });
+          }
+        }else{
+          if(snapByDate[ds]){
+            allSnapshots.push(snapByDate[ds]);
+          }
         }
       }
-      var dayItems = Object.values(dayLatest);
-      var dayAccounts = [];
-      var dayTotalProfit = 0, dayTotalPlanted = 0;
-      for(var i=0; i<dayItems.length; i++){
-        var detail = globalDetailCache[dayItems[i].shortCode];
-        if(!detail) continue;
-        var data = parsePlanting(detail.title || dayItems[i].account+'种树完成', detail.content);
-        data.push_time = detail.pushTime || dayItems[i].pushTime;
-        dayTotalProfit += data.total_profit;
-        dayTotalPlanted += data.planted;
-        dayAccounts.push(data);
-      }
-      if(dayAccounts.length > 0){
-        allSnapshots.push({
-          date: ds,
-          timestamp: new Date(ds.replace(/-/g,'/')+' 00:00:00').getTime(),
-          total_profit: dayTotalProfit,
-          total_planted: dayTotalPlanted,
-          account_count: dayAccounts.length,
-          accounts: dayAccounts
-        });
+    }else{
+      allSnapshots = [];
+      for(var di=0; di<dateKeys.length; di++){
+        var ds = dateKeys[di];
+        var dayMsgs = byDate[ds];
+        var dayLatest = {};
+        for(var i=0; i<dayMsgs.length; i++){
+          var a = dayMsgs[i].account;
+          if(!dayLatest[a] || dayMsgs[i].pushTime > dayLatest[a].pushTime){
+            dayLatest[a] = dayMsgs[i];
+          }
+        }
+        var dayItems = Object.values(dayLatest);
+        var dayAccounts = [];
+        var dayTotalProfit = 0, dayTotalPlanted = 0;
+        for(var i=0; i<dayItems.length; i++){
+          var detail = globalDetailCache[dayItems[i].shortCode];
+          if(!detail) continue;
+          var data = parsePlanting(detail.title || dayItems[i].account+'种树完成', detail.content);
+          data.push_time = detail.pushTime || dayItems[i].pushTime;
+          dayTotalProfit += data.total_profit;
+          dayTotalPlanted += data.planted;
+          dayAccounts.push(data);
+        }
+        if(dayAccounts.length > 0){
+          allSnapshots.push({
+            date: ds,
+            timestamp: new Date(ds.replace(/-/g,'/')+' 00:00:00').getTime(),
+            total_profit: dayTotalProfit,
+            total_planted: dayTotalPlanted,
+            account_count: dayAccounts.length,
+            accounts: dayAccounts
+          });
+        }
       }
     }
     globalAllSnapshots = allSnapshots;
