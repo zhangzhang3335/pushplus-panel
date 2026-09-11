@@ -329,20 +329,22 @@ function fmt(d){return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+
 
 // ===== CORS 代理（解决浏览器跨域限制） =====
 var CORS_PROXIES = [
-  function(url){ return 'https://api.cors.lol/?url=' + encodeURIComponent(url); },
   function(url){ return 'https://corsproxy.io/?url=' + encodeURIComponent(url); },
-  function(url){ return 'https://thingproxy.freeboard.io/fetch/' + url; },
   function(url){ return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url); },
   function(url){ return 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url); },
+  function(url){ return 'https://api.cors.lol/?url=' + encodeURIComponent(url); },
+  function(url){ return 'https://thingproxy.freeboard.io/fetch/' + url; },
   function(url){ return 'https://cors-proxy-rouge.vercel.app/?url=' + encodeURIComponent(url); },
-  function(url){ return 'https://cors-proxy-kokodev.netlify.app/?url=' + encodeURIComponent(url); }
+  function(url){ return 'https://cors-proxy-kokodev.netlify.app/?url=' + encodeURIComponent(url); },
+  function(url){ return 'https://proxy.cors.sh/' + url; },
+  function(url){ return 'https://wp-proxy.herokuapp.com/' + url; }
 ];
 
 // POST-capable proxies (subset that supports POST method)
-var POST_PROXIES = CORS_PROXIES.filter(function(_, i){ return [0,1,2,5,6].indexOf(i) >= 0; });
-var proxyIdx = 0; // 当前使用的代理索引
-var proxyFailCount = {}; // 记录每个代理的连续失败次数
-var FETCH_TIMEOUT = 12000; // fetch 超时 12 秒
+var POST_PROXIES = CORS_PROXIES.filter(function(_, i){ return [0,1,2,3,4,5,6].indexOf(i) >= 0; });
+var proxyIdx = 0;
+var proxyFailCount = {};
+var FETCH_TIMEOUT = 15000;
 
 // ===== 通用重试包装器 =====
 async function retryAsync(fn, retries, delayMs){
@@ -456,7 +458,7 @@ async function corsPost(url, body, customHeaders){
   var proxies = (typeof POST_PROXIES !== 'undefined') ? POST_PROXIES : CORS_PROXIES;
   for(var attempt=0; attempt<proxies.length; attempt++){
     var idx = (proxyIdx + attempt) % proxies.length;
-    if((proxyFailCount[idx]||0) >= 3) continue;
+    if((proxyFailCount[idx]||0) >= 5) continue;
     var proxyUrl = proxies[idx](url);
     try{
       var opts = {method:'POST', headers:{'Content-Type':'application/json'}};
@@ -504,7 +506,7 @@ async function corsGet(url, skipDirect){
   var errors = [];
   for(var attempt=0; attempt<CORS_PROXIES.length; attempt++){
     var idx = (proxyIdx + attempt) % CORS_PROXIES.length;
-    if((proxyFailCount[idx]||0) >= 3) continue;
+    if((proxyFailCount[idx]||0) >= 5) continue;
     var proxyUrl = CORS_PROXIES[idx](url);
     try{
       var resp = await fetchWithTimeout(proxyUrl, {method:'GET'});
@@ -783,6 +785,8 @@ async function loadProfitData(token, secret){
     globalByDate = null;
     globalCachedToken = token;
   }
+  // 每次刷新重置代理失败计数，给所有代理重新尝试的机会
+  proxyFailCount = {};
 
   var ak = await getAccessKey(token, secret);
   var pageErrors = [];
