@@ -329,15 +329,13 @@ function fmt(d){return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+
 
 // ===== CORS 代理（解决浏览器跨域限制） =====
 var CORS_PROXIES = [
-  function(url){ return 'https://corsproxy.io/?url=' + encodeURIComponent(url); },
   function(url){ return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url); },
+  function(url){ return 'https://corsproxy.io/?url=' + encodeURIComponent(url); },
   function(url){ return 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(url); },
   function(url){ return 'https://api.cors.lol/?url=' + encodeURIComponent(url); },
   function(url){ return 'https://thingproxy.freeboard.io/fetch/' + url; },
   function(url){ return 'https://cors-proxy-rouge.vercel.app/?url=' + encodeURIComponent(url); },
-  function(url){ return 'https://cors-proxy-kokodev.netlify.app/?url=' + encodeURIComponent(url); },
-  function(url){ return 'https://proxy.cors.sh/' + url; },
-  function(url){ return 'https://wp-proxy.herokuapp.com/' + url; }
+  function(url){ return 'https://cors-proxy-kokodev.netlify.app/?url=' + encodeURIComponent(url); }
 ];
 
 // POST-capable proxies (subset that supports POST method)
@@ -432,9 +430,9 @@ async function fetchWithTimeout(url, options){
   }
 }
 
-// 先尝试直连，失败再用 CORS 代理发送 POST 请求
+// 先尝试直连POST，失败后用GET+查询参数通过CORS代理（大多数代理不转发POST body）
 async function corsPost(url, body, customHeaders){
-  // 1. Try direct fetch first
+  // 1. Try direct POST first
   try{
     var opts = {method:'POST', headers:{'Content-Type':'application/json'}};
     if(customHeaders) Object.assign(opts.headers, customHeaders);
@@ -453,18 +451,34 @@ async function corsPost(url, body, customHeaders){
   }catch(e){
     console.log('[DIRECT] POST 失败: ' + e.message + '，尝试代理...');
   }
-  // 2. Fall back to CORS proxies
+  // 2. Build URL with query params (many CORS proxies don't forward POST body)
+  var getUrl = url;
+  var params = [];
+  if(body){
+    for(var k in body){
+      if(Object.prototype.hasOwnProperty.call(body, k)){
+        params.push(encodeURIComponent(k) + '=' + encodeURIComponent(body[k]));
+      }
+    }
+  }
+  if(customHeaders){
+    for(var h in customHeaders){
+      if(Object.prototype.hasOwnProperty.call(customHeaders, h)){
+        params.push(encodeURIComponent(h) + '=' + encodeURIComponent(customHeaders[h]));
+      }
+    }
+  }
+  if(params.length > 0){
+    getUrl += (url.indexOf('?') >= 0 ? '&' : '?') + params.join('&');
+  }
+  // 3. Fall back to CORS proxies via GET with query params
   var errors = [];
-  var proxies = (typeof POST_PROXIES !== 'undefined') ? POST_PROXIES : CORS_PROXIES;
-  for(var attempt=0; attempt<proxies.length; attempt++){
-    var idx = (proxyIdx + attempt) % proxies.length;
+  for(var attempt=0; attempt<CORS_PROXIES.length; attempt++){
+    var idx = (proxyIdx + attempt) % CORS_PROXIES.length;
     if((proxyFailCount[idx]||0) >= 5) continue;
-    var proxyUrl = proxies[idx](url);
+    var proxyUrl = CORS_PROXIES[idx](getUrl);
     try{
-      var opts = {method:'POST', headers:{'Content-Type':'application/json'}};
-      if(customHeaders) Object.assign(opts.headers, customHeaders);
-      opts.body = JSON.stringify(body);
-      var resp = await fetchWithTimeout(proxyUrl, opts);
+      var resp = await fetchWithTimeout(proxyUrl, {method:'GET'});
       if(!resp.ok) throw new Error('HTTP ' + resp.status);
       var text = await getResponseText(resp);
       if(!text || text.trim().length === 0) throw new Error('空响应');
@@ -472,16 +486,16 @@ async function corsPost(url, body, customHeaders){
       try { d = JSON.parse(text); } catch(e) { throw new Error('JSON解析失败'); }
       proxyIdx = idx;
       proxyFailCount[idx] = 0;
-      console.log('[CORS] POST 成功（代理 #'+(idx+1)+'）');
+      console.log('[CORS] GET-with-params 成功（代理 #'+(idx+1)+'）');
       return d;
     }catch(e){
       var errMsg = e.name === 'AbortError' ? '请求超时' : e.message;
       proxyFailCount[idx] = (proxyFailCount[idx]||0) + 1;
       errors.push('代理#'+(idx+1)+': '+errMsg);
-      console.log('[CORS] POST 代理 #'+(idx+1)+' 失败: '+errMsg);
+      console.log('[CORS] 代理 #'+(idx+1)+' 失败: '+errMsg);
     }
   }
-  throw new Error('所有请求均失败。直连+'+errors.length+'个代理全部失败。可能原因: CORS限制/网络问题/Token无效');
+  throw new Error('网络请求失败，所有 '+CORS_PROXIES.length+' 个代理均不可用。建议：1)检查网络连接 2)稍后重试 3)尝试更换网络环境');
 }
 
 // 先尝试直连，失败再用 CORS 代理发送 GET 请求
