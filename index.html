@@ -1499,17 +1499,28 @@ function getAutoMs(){
   return min * 60 * 1000;
 }
 
+var lastRefreshTime = 0;
 function startTimer(){
-  if(timer){ clearInterval(timer); timer = null; }
+  if(timer){ clearTimeout(timer); timer = null; }
   if(!autoOn) return;
   var ms = getAutoMs();
   var min = Math.round(ms / 60000);
   console.log('[自动刷新] 启动，间隔 '+min+' 分钟（'+ms+' 毫秒）');
-  timer = setInterval(function(){loadProfit(false);}, ms);
+  lastRefreshTime = Date.now();
+  scheduleNext(ms);
 }
-
+function scheduleNext(ms){
+  timer = setTimeout(function(){
+    var elapsed = Date.now() - lastRefreshTime;
+    if(elapsed >= ms){
+      lastRefreshTime = Date.now();
+      loadProfit(false);
+    }
+    scheduleNext(ms);
+  }, ms);
+}
 function stopTimer(){
-  if(timer){ clearInterval(timer); timer = null; console.log('[自动刷新] 已停止'); }
+  if(timer){ clearTimeout(timer); timer = null; console.log('[自动刷新] 已停止'); }
 }
 
 function toggleAutoRefresh(){
@@ -1569,8 +1580,15 @@ document.getElementById('autoMin').addEventListener('change',function(){
 });
 
 document.addEventListener('visibilitychange',function(){
-  if(document.hidden){ stopTimer(); }
-  else if(autoOn){ loadProfit(false); startTimer(); }
+  if(!document.hidden && autoOn){
+    var elapsed = Date.now() - lastRefreshTime;
+    var ms = getAutoMs();
+    if(elapsed >= ms){
+      console.log('[自动刷新] 页面恢复可见，距上次刷新已 '+Math.round(elapsed/1000)+'s，立即刷新');
+      lastRefreshTime = Date.now();
+      loadProfit(false);
+    }
+  }
 });
 
 // 检查是否有保存的凭据
